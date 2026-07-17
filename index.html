@@ -193,6 +193,8 @@
     width: 96px;
     text-align: center;
   }
+  .poster-card[draggable="true"] { cursor: grab; }
+  .poster-card.dragging { opacity: 0.4; }
   .poster-img, .poster-img-placeholder {
     width: 96px;
     height: 144px;
@@ -1366,13 +1368,23 @@ async function loadTasteEditor() {
 // the search-and-add flow below.
 function refreshAdminPosterList(containerId, getList, setList) {
   const list = getList();
-  renderAdminPosterList(containerId, list, (removeId) => {
-    setList(list.filter((x) => x.id !== removeId));
-    refreshAdminPosterList(containerId, getList, setList);
-  });
+  renderAdminPosterList(
+    containerId, list,
+    (removeId) => {
+      setList(list.filter((x) => x.id !== removeId));
+      refreshAdminPosterList(containerId, getList, setList);
+    },
+    (fromIndex, toIndex) => {
+      const reordered = [...list];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+      setList(reordered);
+      refreshAdminPosterList(containerId, getList, setList);
+    }
+  );
 }
 
-function renderAdminPosterList(containerId, list, onRemove) {
+function renderAdminPosterList(containerId, list, onRemove, onReorder) {
   const container = document.getElementById(containerId);
   if (list.length === 0) {
     container.innerHTML = `<p class="text-xs text-[var(--wood-500)]">아직 추가한 항목이 없어요</p>`;
@@ -1383,7 +1395,7 @@ function renderAdminPosterList(containerId, list, onRemove) {
       ? `<img class="poster-img" src="https://image.tmdb.org/t/p/w200${escapeHtml(item.poster_path)}" alt="${escapeHtml(item.title)}" />`
       : `<div class="poster-img-placeholder">🎬</div>`;
     return `
-      <div class="poster-card">
+      <div class="poster-card" draggable="true" data-index="${i}">
         <span class="poster-remove-btn" data-id="${item.id}">✕</span>
         <span class="poster-rank">${i + 1}</span>
         ${img}
@@ -1392,7 +1404,27 @@ function renderAdminPosterList(containerId, list, onRemove) {
     `;
   }).join("");
   container.querySelectorAll(".poster-remove-btn").forEach((btn) => {
-    btn.addEventListener("click", () => onRemove(Number(btn.dataset.id)));
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onRemove(Number(btn.dataset.id));
+    });
+  });
+
+  if (!onReorder) return;
+  let dragSrcIndex = null;
+  container.querySelectorAll(".poster-card").forEach((card) => {
+    card.addEventListener("dragstart", () => {
+      dragSrcIndex = Number(card.dataset.index);
+      card.classList.add("dragging");
+    });
+    card.addEventListener("dragend", () => card.classList.remove("dragging"));
+    card.addEventListener("dragover", (e) => e.preventDefault());
+    card.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const targetIndex = Number(card.dataset.index);
+      if (dragSrcIndex === null || dragSrcIndex === targetIndex) return;
+      onReorder(dragSrcIndex, targetIndex);
+    });
   });
 }
 
