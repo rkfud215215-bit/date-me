@@ -16,14 +16,14 @@ create table blocked_dates (
 create table profile_taste (
   id int primary key default 1,
   intro text,
-  movie text,
-  series text,
+  movie_list jsonb default '[]'::jsonb,   -- [{id, title, poster_path, year}, ...] from TMDb search
+  series_list jsonb default '[]'::jsonb,
   music text,
   photo_url text,
   music_playlist_url text
 );
-insert into profile_taste (id, intro, movie, series, music, photo_url, music_playlist_url)
-values (1, '', '', '', '', null, null);
+insert into profile_taste (id, intro, movie_list, series_list, music, photo_url, music_playlist_url)
+values (1, '', '[]', '[]', '', null, null);
 
 -- RLS 활성화 + anon(비로그인 브라우저)에게 전체 권한 허용
 -- (이 앱은 백엔드 서버가 없어서, 관리자 비밀번호는 화면단 잠금일 뿐 실제 쓰기 권한은

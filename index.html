@@ -179,6 +179,105 @@
   }
   .taste-blog-big .music-embed { height: 352px; }
 
+  /* Movie/series poster rows -- shared by the admin picker and the public taste blog */
+  .poster-row {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  .poster-card {
+    position: relative;
+    flex: 0 0 auto;
+    width: 96px;
+    text-align: center;
+  }
+  .poster-img, .poster-img-placeholder {
+    width: 96px;
+    height: 144px;
+    object-fit: cover;
+    border-radius: 10px;
+    background: var(--wood-200);
+    box-shadow: 0 4px 12px -4px rgba(74,63,53,0.35);
+  }
+  .poster-img-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+  }
+  .poster-rank {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    background: rgba(51,43,36,0.75);
+    color: #FBF7F0;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+  .poster-title {
+    font-size: 11px;
+    line-height: 1.3;
+    margin-top: 6px;
+    color: var(--ink-800);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .taste-blog-big .poster-card { width: 130px; }
+  .taste-blog-big .poster-img, .taste-blog-big .poster-img-placeholder { width: 130px; height: 195px; }
+  .taste-blog-big .poster-title { font-size: 13px; }
+
+  .poster-remove-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--ink-900);
+    color: #FBF7F0;
+    font-size: 12px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .poster-search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 280px;
+    overflow-y: auto;
+    background: #FFFDF9;
+    border: 1px solid var(--wood-300);
+    border-radius: 12px;
+    box-shadow: 0 12px 30px -10px rgba(74,63,53,0.3);
+  }
+  .poster-search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    cursor: pointer;
+  }
+  .poster-search-result-item:hover { background: var(--wood-100); }
+  .poster-search-result-item img, .poster-search-result-item .poster-thumb-placeholder {
+    width: 32px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: var(--wood-200);
+    flex-shrink: 0;
+  }
+  .poster-search-result-item .result-title { font-size: 13px; font-weight: 600; }
+  .poster-search-result-item .result-year { font-size: 11px; color: var(--wood-500); }
+
   .btn-primary {
     background: var(--ink-800);
     color: #FBF7F0;
@@ -380,6 +479,10 @@
 
   // ---- Supabase Storage ----
   const SUPABASE_STORAGE_BUCKET = "profile-photos"; // create this bucket (public) in Supabase dashboard
+
+  // ---- TMDb (movie/series poster search in the admin taste editor) ----
+  // Free key from themoviedb.org -> Settings -> API -> "API Key (v3 auth)"
+  const TMDB_API_KEY = "975c807f73d5af29d71e50a5264da6c8";
 </script>
 <!-- ======================================================================= -->
 
@@ -569,15 +672,25 @@
           <p class="text-xs text-[var(--wood-500)] mb-2">블로그 글처럼 자유롭게 길게 써도 돼요. 줄바꿈은 그대로 반영돼요.</p>
           <textarea id="adminIntroInput" rows="8" class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
         </div>
-        <div class="mb-5">
-          <label class="text-sm font-semibold block mb-2">🎬 인생 영화</label>
-          <p class="text-xs text-[var(--wood-500)] mb-2">예: 영화 top 10을 한 줄씩 적어보세요.</p>
-          <textarea id="adminMovieInput" rows="8" placeholder="1. &#10;2. &#10;3. ..." class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+        <div class="mb-6">
+          <label class="text-sm font-semibold block mb-2">🎬 인생 영화 (최대 10개)</label>
+          <p class="text-xs text-[var(--wood-500)] mb-2">제목을 검색해서 클릭하면 포스터와 함께 추가돼요.</p>
+          <div class="relative">
+            <input id="movieSearchInput" type="text" placeholder="영화 제목 검색..."
+              class="w-full p-3 rounded-lg text-sm" style="background:var(--wood-100); border:1px solid var(--wood-300);" autocomplete="off" />
+            <div id="movieSearchResults" class="poster-search-results hidden"></div>
+          </div>
+          <div id="movieList" class="poster-row mt-3"></div>
         </div>
-        <div class="mb-5">
-          <label class="text-sm font-semibold block mb-2">📺 인생 시리즈</label>
-          <p class="text-xs text-[var(--wood-500)] mb-2">예: 드라마/시리즈 top 10을 한 줄씩 적어보세요.</p>
-          <textarea id="adminSeriesInput" rows="8" placeholder="1. &#10;2. &#10;3. ..." class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+        <div class="mb-6">
+          <label class="text-sm font-semibold block mb-2">📺 인생 시리즈 (최대 10개)</label>
+          <p class="text-xs text-[var(--wood-500)] mb-2">제목을 검색해서 클릭하면 포스터와 함께 추가돼요.</p>
+          <div class="relative">
+            <input id="seriesSearchInput" type="text" placeholder="드라마/시리즈 제목 검색..."
+              class="w-full p-3 rounded-lg text-sm" style="background:var(--wood-100); border:1px solid var(--wood-300);" autocomplete="off" />
+            <div id="seriesSearchResults" class="poster-search-results hidden"></div>
+          </div>
+          <div id="seriesList" class="poster-row mt-3"></div>
         </div>
         <div class="mb-5">
           <label class="text-sm font-semibold block mb-2">🎧 인생 음악</label>
@@ -647,7 +760,7 @@ const state = {
   adminCalViewYear: new Date().getFullYear(),
   adminCalViewMonth: new Date().getMonth(),
   blockedDates: new Set(),// from Supabase blocked_dates
-  taste: { intro: "", movie: "", series: "", music: "", musicPlaylistUrl: "" },
+  taste: { intro: "", movieList: [], seriesList: [], music: "", musicPlaylistUrl: "" },
   photoUrl: DEFAULT_PROFILE_PHOTO_URL,
   // profile photo crop tool state
   cropNaturalW: 0,
@@ -703,14 +816,14 @@ function initSupabase() {
   create table profile_taste (
     id int primary key default 1,
     intro text,
-    movie text,
-    series text,
+    movie_list jsonb default '[]'::jsonb,   -- [{id, title, poster_path, year}, ...] from TMDb search
+    series_list jsonb default '[]'::jsonb,
     music text,
     photo_url text,
     music_playlist_url text
   );
-  insert into profile_taste (id, intro, movie, series, music, photo_url, music_playlist_url)
-  values (1, '', '', '', '', null, null);
+  insert into profile_taste (id, intro, movie_list, series_list, music, photo_url, music_playlist_url)
+  values (1, '', '[]', '[]', '', null, null);
 
   -- Enable RLS + policies allowing anon select/insert as appropriate for your use case.
 
@@ -971,16 +1084,29 @@ async function refreshTasteFromSupabase() {
   if (!supabaseClient) return;
   const { data, error } = await supabaseClient
     .from("profile_taste")
-    .select("intro, movie, series, music, music_playlist_url")
+    .select("intro, movie_list, series_list, music, music_playlist_url")
     .eq("id", 1)
     .single();
   if (!error && data) {
     state.taste.intro = data.intro || "";
-    state.taste.movie = data.movie || "";
-    state.taste.series = data.series || "";
+    state.taste.movieList = data.movie_list || [];
+    state.taste.seriesList = data.series_list || [];
     state.taste.music = data.music || "";
     state.taste.musicPlaylistUrl = data.music_playlist_url || "";
   }
+}
+
+function posterRowHTML(heading, list) {
+  if (!list || list.length === 0) {
+    return `<div class="taste-section"><div class="taste-heading">${heading}</div><div class="taste-body">아직 등록되지 않았어요</div></div>`;
+  }
+  const cards = list.map((item, i) => {
+    const img = item.poster_path
+      ? `<img class="poster-img" src="https://image.tmdb.org/t/p/w200${escapeHtml(item.poster_path)}" alt="${escapeHtml(item.title)}" />`
+      : `<div class="poster-img-placeholder">🎬</div>`;
+    return `<div class="poster-card"><span class="poster-rank">${i + 1}</span>${img}<div class="poster-title">${escapeHtml(item.title)}</div></div>`;
+  }).join("");
+  return `<div class="taste-section"><div class="taste-heading">${heading}</div><div class="poster-row">${cards}</div></div>`;
 }
 
 function buildTasteBlogHTML() {
@@ -993,8 +1119,8 @@ function buildTasteBlogHTML() {
 
   let html = `<img src="${escapeHtml(state.photoUrl)}" alt="프로필 사진" class="profile-photo mb-6" style="margin-left:auto;margin-right:auto;" />`;
   if (state.taste.intro) html += section("👋 자기소개", state.taste.intro);
-  html += section("🎬 인생 영화", state.taste.movie);
-  html += section("📺 인생 시리즈", state.taste.series);
+  html += posterRowHTML("🎬 인생 영화", state.taste.movieList);
+  html += posterRowHTML("📺 인생 시리즈", state.taste.seriesList);
 
   const hasMusicText = !!state.taste.music;
   const hasPlaylist = state.taste.musicPlaylistUrl && state.taste.musicPlaylistUrl.includes("music.apple.com");
@@ -1210,36 +1336,164 @@ function escapeHtml(str) {
 }
 
 /* ---- Admin: taste editor ---- */
+let adminMovieList = [];
+let adminSeriesList = [];
+
 async function loadTasteEditor() {
   if (!supabaseClient) return;
   const { data, error } = await supabaseClient
     .from("profile_taste")
-    .select("intro, movie, series, music, music_playlist_url")
+    .select("intro, movie_list, series_list, music, music_playlist_url")
     .eq("id", 1)
     .single();
   if (!error && data) {
     document.getElementById("adminIntroInput").value = data.intro || "";
-    document.getElementById("adminMovieInput").value = data.movie || "";
-    document.getElementById("adminSeriesInput").value = data.series || "";
+    adminMovieList = data.movie_list || [];
+    adminSeriesList = data.series_list || [];
     document.getElementById("adminMusicInput").value = data.music || "";
     document.getElementById("adminMusicPlaylistInput").value = data.music_playlist_url || "";
+  } else {
+    adminMovieList = [];
+    adminSeriesList = [];
+  }
+  refreshAdminPosterList("movieList", () => adminMovieList, (l) => { adminMovieList = l; });
+  refreshAdminPosterList("seriesList", () => adminSeriesList, (l) => { adminSeriesList = l; });
+}
+
+// Renders containerId from getList(), wiring each card's remove button to update
+// via setList() and re-render itself -- reused by both the initial load and by
+// the search-and-add flow below.
+function refreshAdminPosterList(containerId, getList, setList) {
+  const list = getList();
+  renderAdminPosterList(containerId, list, (removeId) => {
+    setList(list.filter((x) => x.id !== removeId));
+    refreshAdminPosterList(containerId, getList, setList);
+  });
+}
+
+function renderAdminPosterList(containerId, list, onRemove) {
+  const container = document.getElementById(containerId);
+  if (list.length === 0) {
+    container.innerHTML = `<p class="text-xs text-[var(--wood-500)]">아직 추가한 항목이 없어요</p>`;
+    return;
+  }
+  container.innerHTML = list.map((item, i) => {
+    const img = item.poster_path
+      ? `<img class="poster-img" src="https://image.tmdb.org/t/p/w200${escapeHtml(item.poster_path)}" alt="${escapeHtml(item.title)}" />`
+      : `<div class="poster-img-placeholder">🎬</div>`;
+    return `
+      <div class="poster-card">
+        <span class="poster-remove-btn" data-id="${item.id}">✕</span>
+        <span class="poster-rank">${i + 1}</span>
+        ${img}
+        <div class="poster-title">${escapeHtml(item.title)}</div>
+      </div>
+    `;
+  }).join("");
+  container.querySelectorAll(".poster-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", () => onRemove(Number(btn.dataset.id)));
+  });
+}
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+async function searchTMDb(query, mediaType) {
+  if (TMDB_API_KEY === "YOUR_TMDB_API_KEY") {
+    toast("TMDb API 키가 설정되지 않았어요");
+    return [];
+  }
+  const url = `https://api.themoviedb.org/3/search/${mediaType}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=ko-KR`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.results || []).slice(0, 8);
+  } catch (err) {
+    console.error("TMDb 검색 실패:", err);
+    return [];
   }
 }
+
+function setupPosterSearch(inputId, resultsId, mediaType, getList, setList, renderContainerId) {
+  const input = document.getElementById(inputId);
+  const resultsBox = document.getElementById(resultsId);
+
+  const runSearch = debounce(async () => {
+    const query = input.value.trim();
+    if (!query) { resultsBox.classList.add("hidden"); resultsBox.innerHTML = ""; return; }
+    const results = await searchTMDb(query, mediaType);
+    if (results.length === 0) {
+      resultsBox.innerHTML = `<div class="poster-search-result-item" style="cursor:default;">검색 결과가 없어요</div>`;
+      resultsBox.classList.remove("hidden");
+      return;
+    }
+    resultsBox.innerHTML = results.map((r) => {
+      const title = r.title || r.name || "";
+      const year = (r.release_date || r.first_air_date || "").slice(0, 4);
+      const thumb = r.poster_path
+        ? `<img src="https://image.tmdb.org/t/p/w92${escapeHtml(r.poster_path)}" alt="" />`
+        : `<div class="poster-thumb-placeholder"></div>`;
+      return `
+        <div class="poster-search-result-item" data-id="${r.id}" data-title="${escapeHtml(title)}" data-poster="${escapeHtml(r.poster_path || "")}" data-year="${year}">
+          ${thumb}
+          <div>
+            <div class="result-title">${escapeHtml(title)}</div>
+            <div class="result-year">${year}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+    resultsBox.classList.remove("hidden");
+
+    resultsBox.querySelectorAll(".poster-search-result-item[data-id]").forEach((item) => {
+      item.addEventListener("click", () => {
+        const list = getList();
+        const id = Number(item.dataset.id);
+        if (list.some((x) => x.id === id)) { toast("이미 추가한 항목이에요"); return; }
+        if (list.length >= 10) { toast("최대 10개까지만 추가할 수 있어요"); return; }
+        setList([...list, { id, title: item.dataset.title, poster_path: item.dataset.poster || null, year: item.dataset.year }]);
+        refreshAdminPosterList(renderContainerId, getList, setList);
+        input.value = "";
+        resultsBox.classList.add("hidden");
+        resultsBox.innerHTML = "";
+      });
+    });
+  }, 350);
+
+  input.addEventListener("input", runSearch);
+  input.addEventListener("blur", () => setTimeout(() => resultsBox.classList.add("hidden"), 150));
+  input.addEventListener("focus", () => { if (resultsBox.innerHTML) resultsBox.classList.remove("hidden"); });
+}
+
+setupPosterSearch("movieSearchInput", "movieSearchResults", "movie",
+  () => adminMovieList, (list) => { adminMovieList = list; }, "movieList");
+setupPosterSearch("seriesSearchInput", "seriesSearchResults", "tv",
+  () => adminSeriesList, (list) => { adminSeriesList = list; }, "seriesList");
 
 document.getElementById("saveTasteBtn").addEventListener("click", async () => {
   if (!supabaseClient) { toast("Supabase가 설정되지 않았어요"); return; }
   const intro = document.getElementById("adminIntroInput").value.trim();
-  const movie = document.getElementById("adminMovieInput").value.trim();
-  const series = document.getElementById("adminSeriesInput").value.trim();
   const music = document.getElementById("adminMusicInput").value.trim();
   const musicPlaylistUrl = document.getElementById("adminMusicPlaylistInput").value.trim();
   const { error } = await supabaseClient
     .from("profile_taste")
-    .upsert({ id: 1, intro, movie, series, music, music_playlist_url: musicPlaylistUrl || null });
+    .upsert({
+      id: 1,
+      intro,
+      movie_list: adminMovieList,
+      series_list: adminSeriesList,
+      music,
+      music_playlist_url: musicPlaylistUrl || null,
+    });
   if (!error) {
     state.taste.intro = intro;
-    state.taste.movie = movie;
-    state.taste.series = series;
+    state.taste.movieList = adminMovieList;
+    state.taste.seriesList = adminSeriesList;
     state.taste.music = music;
     state.taste.musicPlaylistUrl = musicPlaylistUrl;
     toast("취향이 저장되었어요");
