@@ -543,11 +543,18 @@
         </div>
         <div class="mb-5">
           <label class="text-sm font-semibold block mb-2">🎬 인생 영화</label>
-          <textarea id="adminMovieInput" rows="8" class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+          <p class="text-xs text-[var(--wood-500)] mb-2">예: 영화 top 10을 한 줄씩 적어보세요.</p>
+          <textarea id="adminMovieInput" rows="8" placeholder="1. &#10;2. &#10;3. ..." class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+        </div>
+        <div class="mb-5">
+          <label class="text-sm font-semibold block mb-2">📺 인생 시리즈</label>
+          <p class="text-xs text-[var(--wood-500)] mb-2">예: 드라마/시리즈 top 10을 한 줄씩 적어보세요.</p>
+          <textarea id="adminSeriesInput" rows="8" placeholder="1. &#10;2. &#10;3. ..." class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
         </div>
         <div class="mb-5">
           <label class="text-sm font-semibold block mb-2">🎧 인생 음악</label>
-          <textarea id="adminMusicInput" rows="8" class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+          <p class="text-xs text-[var(--wood-500)] mb-2">간단한 소개 문구만 써도 되고, 비워두고 아래 플레이리스트 링크만 넣어도 돼요.</p>
+          <textarea id="adminMusicInput" rows="4" class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
         </div>
         <div class="mb-5">
           <label class="text-sm font-semibold block mb-2">🎧 Apple Music 플레이리스트 링크 (선택)</label>
@@ -612,7 +619,7 @@ const state = {
   adminCalViewYear: new Date().getFullYear(),
   adminCalViewMonth: new Date().getMonth(),
   blockedDates: new Set(),// from Supabase blocked_dates
-  taste: { intro: "", movie: "", music: "", musicPlaylistUrl: "" },
+  taste: { intro: "", movie: "", series: "", music: "", musicPlaylistUrl: "" },
   photoUrl: DEFAULT_PROFILE_PHOTO_URL,
   // profile photo crop tool state
   cropNaturalW: 0,
@@ -669,11 +676,13 @@ function initSupabase() {
     id int primary key default 1,
     intro text,
     movie text,
+    series text,
     music text,
     photo_url text,
     music_playlist_url text
   );
-  insert into profile_taste (id, intro, movie, music, photo_url, music_playlist_url) values (1, '', '', '', null, null);
+  insert into profile_taste (id, intro, movie, series, music, photo_url, music_playlist_url)
+  values (1, '', '', '', '', null, null);
 
   -- Enable RLS + policies allowing anon select/insert as appropriate for your use case.
 
@@ -934,12 +943,13 @@ async function refreshTasteFromSupabase() {
   if (!supabaseClient) return;
   const { data, error } = await supabaseClient
     .from("profile_taste")
-    .select("intro, movie, music, music_playlist_url")
+    .select("intro, movie, series, music, music_playlist_url")
     .eq("id", 1)
     .single();
   if (!error && data) {
     state.taste.intro = data.intro || "";
     state.taste.movie = data.movie || "";
+    state.taste.series = data.series || "";
     state.taste.music = data.music || "";
     state.taste.musicPlaylistUrl = data.music_playlist_url || "";
   }
@@ -953,16 +963,25 @@ function buildTasteBlogHTML() {
     </div>
   `;
 
-  let html = "";
+  let html = `<img src="${escapeHtml(state.photoUrl)}" alt="프로필 사진" class="profile-photo mb-6" style="margin-left:auto;margin-right:auto;" />`;
   if (state.taste.intro) html += section("👋 자기소개", state.taste.intro);
   html += section("🎬 인생 영화", state.taste.movie);
-  html += section("🎧 인생 음악", state.taste.music);
+  html += section("📺 인생 시리즈", state.taste.series);
 
-  if (state.taste.musicPlaylistUrl && state.taste.musicPlaylistUrl.includes("music.apple.com")) {
-    const embedSrc = escapeHtml(state.taste.musicPlaylistUrl.replace("music.apple.com", "embed.music.apple.com"));
-    html += `<iframe allow="autoplay *; encrypted-media *;" frameborder="0"
-      style="width:100%; height:150px; border-radius:12px; overflow:hidden; margin-top:-12px;"
-      src="${embedSrc}"></iframe>`;
+  const hasMusicText = !!state.taste.music;
+  const hasPlaylist = state.taste.musicPlaylistUrl && state.taste.musicPlaylistUrl.includes("music.apple.com");
+  if (hasMusicText || hasPlaylist) {
+    html += `<div class="taste-section"><div class="taste-heading">🎧 인생 음악</div>`;
+    if (hasMusicText) html += `<div class="taste-body">${escapeHtml(state.taste.music)}</div>`;
+    if (hasPlaylist) {
+      const embedSrc = escapeHtml(state.taste.musicPlaylistUrl.replace("music.apple.com", "embed.music.apple.com"));
+      html += `<iframe allow="autoplay *; encrypted-media *;" frameborder="0"
+        style="width:100%; height:150px; border-radius:12px; overflow:hidden; margin-top:8px;"
+        src="${embedSrc}"></iframe>`;
+    }
+    html += `</div>`;
+  } else {
+    html += section("🎧 인생 음악", "");
   }
   return html;
 }
@@ -1168,12 +1187,13 @@ async function loadTasteEditor() {
   if (!supabaseClient) return;
   const { data, error } = await supabaseClient
     .from("profile_taste")
-    .select("intro, movie, music, music_playlist_url")
+    .select("intro, movie, series, music, music_playlist_url")
     .eq("id", 1)
     .single();
   if (!error && data) {
     document.getElementById("adminIntroInput").value = data.intro || "";
     document.getElementById("adminMovieInput").value = data.movie || "";
+    document.getElementById("adminSeriesInput").value = data.series || "";
     document.getElementById("adminMusicInput").value = data.music || "";
     document.getElementById("adminMusicPlaylistInput").value = data.music_playlist_url || "";
   }
@@ -1183,19 +1203,22 @@ document.getElementById("saveTasteBtn").addEventListener("click", async () => {
   if (!supabaseClient) { toast("Supabase가 설정되지 않았어요"); return; }
   const intro = document.getElementById("adminIntroInput").value.trim();
   const movie = document.getElementById("adminMovieInput").value.trim();
+  const series = document.getElementById("adminSeriesInput").value.trim();
   const music = document.getElementById("adminMusicInput").value.trim();
   const musicPlaylistUrl = document.getElementById("adminMusicPlaylistInput").value.trim();
   const { error } = await supabaseClient
     .from("profile_taste")
-    .upsert({ id: 1, intro, movie, music, music_playlist_url: musicPlaylistUrl || null });
+    .upsert({ id: 1, intro, movie, series, music, music_playlist_url: musicPlaylistUrl || null });
   if (!error) {
     state.taste.intro = intro;
     state.taste.movie = movie;
+    state.taste.series = series;
     state.taste.music = music;
     state.taste.musicPlaylistUrl = musicPlaylistUrl;
     toast("취향이 저장되었어요");
   } else {
-    toast("저장에 실패했어요");
+    console.error("취향 저장 실패:", error);
+    toast(`저장에 실패했어요: ${error.message}`);
   }
 });
 
@@ -1382,12 +1405,13 @@ async function loadSiteConfig() {
   if (!supabaseClient) return;
   const { data, error } = await supabaseClient
     .from("profile_taste")
-    .select("intro, movie, music, music_playlist_url, photo_url")
+    .select("intro, movie, series, music, music_playlist_url, photo_url")
     .eq("id", 1)
     .single();
   if (!error && data) {
     state.taste.intro = data.intro || "";
     state.taste.movie = data.movie || "";
+    state.taste.series = data.series || "";
     state.taste.music = data.music || "";
     state.taste.musicPlaylistUrl = data.music_playlist_url || "";
     if (data.photo_url) {
