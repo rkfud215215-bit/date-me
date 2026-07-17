@@ -415,7 +415,6 @@
         <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
       </div>
       <div id="calGrid" class="grid grid-cols-7 gap-1"></div>
-      <div id="calLoading" class="text-center text-xs text-[var(--wood-500)] mt-2 hidden">일정을 불러오는 중…</div>
     </div>
 
     <!-- menu -->
@@ -513,7 +512,8 @@
 
       <!-- schedule mgmt -->
       <div id="adminTab-schedule" class="admin-panel">
-        <p class="text-sm text-[var(--wood-600)] mb-4">날짜를 클릭해서 예약 불가(차단) 상태를 토글하세요. 빨간 배경 = 차단됨.</p>
+        <p class="text-sm text-[var(--wood-600)] mb-3">날짜를 클릭해서 예약 불가(차단) 상태를 토글하세요. 진한 배경 = 차단됨, 연한 배경 = 구글 캘린더 일정 있음.</p>
+        <button id="syncGoogleBusyBtn" class="btn-ghost w-full py-2 rounded-full text-xs font-semibold mb-4">📅 구글 캘린더에서 바쁜 날짜 가져오기</button>
         <div class="flex items-center justify-between mb-3">
           <button id="adminCalPrevBtn" class="w-8 h-8 rounded-full hover:bg-[var(--wood-200)]">‹</button>
           <span id="adminCalMonthLabel" class="font-semibold"></span>
@@ -538,7 +538,8 @@
                 <th class="py-2 pr-4">이름</th>
                 <th class="py-2 pr-4">날짜</th>
                 <th class="py-2 pr-4">메뉴</th>
-                <th class="py-2">신청 시각</th>
+                <th class="py-2 pr-4">신청 시각</th>
+                <th class="py-2"></th>
               </tr>
             </thead>
             <tbody id="reservationsTableBody"></tbody>
@@ -793,13 +794,16 @@ noBtn.addEventListener("mouseenter", dodgeNoBtn);
 noBtn.addEventListener("touchstart", (e) => { e.preventDefault(); dodgeNoBtn(); }, { passive: false });
 noBtn.addEventListener("click", (e) => { e.preventDefault(); dodgeNoBtn(); });
 
-yesBtn.addEventListener("click", async () => {
+yesBtn.addEventListener("click", () => {
   noBtn.style.visibility = "hidden";
   noBtnPositioned = false;
   switchScene("scene-propose", "scene-schedule");
   renderMenuGrid();
+  // Blocked dates come from Supabase's blocked_dates table only -- visitors never see
+  // a Google sign-in prompt. The admin syncs their real Google Calendar busy dates
+  // into that table from the admin panel's schedule tab (their own authenticated
+  // session), which is what actually disables those dates here.
   renderCalendar();
-  await loadBusyDatesFromGoogle();
 });
 
 /* =========================================================================
@@ -890,7 +894,11 @@ document.getElementById("confirmScheduleBtn").addEventListener("click", async ()
 });
 
 /* =========================================================================
-   SCENE 4: confirm -> save to Supabase + google calendar
+   SCENE 4: confirm -> save to Supabase
+   (Google Calendar sync is deliberately NOT triggered here -- that would pop up a
+   Google sign-in prompt for the visitor, which is wrong. Instead the admin adds
+   confirmed reservations to their own calendar from the admin panel, where any
+   Google auth happens in the owner's own session. See ADMIN section below.)
 ========================================================================= */
 async function saveReservation() {
   const btnLabel = document.getElementById("confirmBtnLabel");
@@ -908,7 +916,6 @@ async function saveReservation() {
       });
       if (error) console.error("Supabase insert error:", error);
     }
-    await createGoogleCalendarEvent();
   } catch (err) {
     console.error(err);
   } finally {
@@ -985,13 +992,17 @@ function ensureGoogleAuth() {
   });
 }
 
-async function loadBusyDatesFromGoogle() {
+// Both functions below are only ever called from the ADMIN panel (owner's own
+// browser session) -- never from the visitor-facing flow -- so the Google sign-in
+// popup they trigger is always the site owner's, never a date prospect's.
+
+async function syncGoogleBusyDatesToAdmin() {
   if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_OAUTH_CLIENT_ID" || GOOGLE_API_KEY === "YOUR_GOOGLE_API_KEY") {
-    console.warn("Google Calendar API가 설정되지 않았어요. 상단 CONFIG 값을 채워주세요.");
+    toast("Google Calendar API가 설정되지 않았어요");
     return;
   }
-  const loadingEl = document.getElementById("calLoading");
-  loadingEl.classList.remove("hidden");
+  const btn = document.getElementById("syncGoogleBusyBtn");
+  btn.disabled = true;
   try {
     await ensureGapiInited();
     await ensureGoogleAuth();
@@ -1011,7 +1022,7 @@ async function loadBusyDatesFromGoogle() {
     });
 
     const events = res.result.items || [];
-    state.busyDates.clear();
+    const busyDates = new Set();
     events.forEach((ev) => {
       const isAllDay = !!ev.start?.date;
       const startStr = ev.start?.date || ev.start?.dateTime;
@@ -1030,38 +1041,58 @@ async function loadBusyDatesFromGoogle() {
       }
 
       while (cur < endDate) {
-        state.busyDates.add(fmtDate(cur.getFullYear(), cur.getMonth(), cur.getDate()));
+        busyDates.add(fmtDate(cur.getFullYear(), cur.getMonth(), cur.getDate()));
         cur.setDate(cur.getDate() + 1);
       }
     });
-    renderCalendar();
+
+    state.busyDates = busyDates;
+    if (supabaseClient && busyDates.size > 0) {
+      const rows = [...busyDates].map((date) => ({ date }));
+      const { error } = await supabaseClient.from("blocked_dates").upsert(rows, { onConflict: "date" });
+      if (error) console.error("blocked_dates upsert error:", error);
+      await loadBlockedDates();
+    }
+    renderAdminCalendar();
+    toast(`구글 캘린더 일정 ${busyDates.size}일 반영됐어요`);
   } catch (err) {
     console.error("Google Calendar 조회 실패:", err);
     toast("캘린더 정보를 불러오지 못했어요");
   } finally {
-    loadingEl.classList.add("hidden");
+    btn.disabled = false;
   }
 }
 
-async function createGoogleCalendarEvent() {
-  if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_OAUTH_CLIENT_ID" || GOOGLE_API_KEY === "YOUR_GOOGLE_API_KEY") return;
+async function addReservationToGoogleCalendar(name, dateStr, menuId, btn) {
+  if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_OAUTH_CLIENT_ID" || GOOGLE_API_KEY === "YOUR_GOOGLE_API_KEY") {
+    toast("Google Calendar API가 설정되지 않았어요");
+    return;
+  }
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = "등록 중…";
   try {
     await ensureGapiInited();
     await ensureGoogleAuth();
     window.gapi.client.setToken({ access_token: state.googleAccessToken });
 
-    const menuLabel = MENUS.find((m) => m.id === state.selectedMenu)?.label || "";
+    const menuLabel = MENUS.find((m) => m.id === menuId)?.label || menuId;
     await window.gapi.client.calendar.events.insert({
       calendarId: GOOGLE_CALENDAR_ID,
       resource: {
-        summary: `${state.name}님과 데이트 (${menuLabel})`,
-        description: `예약 시스템을 통해 자동 등록된 일정입니다.`,
-        start: { date: state.selectedDate },
-        end: { date: state.selectedDate },
+        summary: `${name}님과 데이트 (${menuLabel})`,
+        description: `예약 시스템을 통해 등록된 일정입니다.`,
+        start: { date: dateStr },
+        end: { date: dateStr },
       },
     });
+    btn.textContent = "등록 완료 ✓";
+    toast("캘린더에 등록됐어요");
   } catch (err) {
     console.error("Google Calendar 일정 등록 실패:", err);
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+    toast("캘린더 등록에 실패했어요");
   }
 }
 
@@ -1177,6 +1208,8 @@ async function toggleBlockedDate(dateStr) {
   renderAdminCalendar();
 }
 
+document.getElementById("syncGoogleBusyBtn").addEventListener("click", syncGoogleBusyDatesToAdmin);
+
 document.getElementById("adminCalPrevBtn").addEventListener("click", () => {
   state.adminCalViewMonth--;
   if (state.adminCalViewMonth < 0) { state.adminCalViewMonth = 11; state.adminCalViewYear--; }
@@ -1215,8 +1248,12 @@ async function loadReservationsTable() {
       <td class="py-2 pr-4">${escapeHtml(row.name)}</td>
       <td class="py-2 pr-4">${row.date}</td>
       <td class="py-2 pr-4">${escapeHtml(menuLabel)}</td>
-      <td class="py-2 text-xs text-[var(--wood-500)]">${new Date(row.created_at).toLocaleString("ko-KR")}</td>
+      <td class="py-2 pr-4 text-xs text-[var(--wood-500)]">${new Date(row.created_at).toLocaleString("ko-KR")}</td>
+      <td class="py-2"><button class="add-to-gcal-btn btn-ghost px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">📅 캘린더 등록</button></td>
     `;
+    tr.querySelector(".add-to-gcal-btn").addEventListener("click", (e) => {
+      addReservationToGoogleCalendar(row.name, row.date, row.menu, e.currentTarget);
+    });
     tbody.appendChild(tr);
   });
 }
