@@ -12,14 +12,12 @@
 <!-- Google Identity Services (for Google Calendar OAuth) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <style>
   * { -webkit-tap-highlight-color: transparent; }
   html, body { overscroll-behavior: none; }
   body {
-    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
     background: #F7F1E8;
     color: #4A3F35;
   }
@@ -37,7 +35,7 @@
     z-index: -10;
     background: linear-gradient(180deg, rgba(247,241,232,0.55), rgba(247,241,232,0.75));
   }
-  .font-serif-kr { font-family: 'Gowun Batang', serif; }
+  .font-display { font-family: 'Pretendard', sans-serif; font-weight: 800; letter-spacing: -0.03em; }
 
   /* warm wood/beige palette */
   :root{
@@ -325,7 +323,7 @@
 <section id="scene-intro" class="scene active">
   <div class="paper-card rounded-3xl p-10 md:p-14 max-w-md w-full text-center fade-up">
     <p class="text-sm tracking-widest text-[var(--wood-600)] mb-3 uppercase">Invitation</p>
-    <h1 class="font-serif-kr text-2xl md:text-3xl font-bold mb-8 leading-snug">당신의 이름을<br/>입력해주세요</h1>
+    <h1 class="font-display text-2xl md:text-3xl font-bold mb-8 leading-snug">당신의 이름을<br/>입력해주세요</h1>
     <input id="nameInput" type="text" placeholder="이름을 적어주세요"
       class="w-full text-center text-lg py-3 px-4 bg-transparent" maxlength="12" />
     <button id="nameNextBtn" disabled
@@ -339,7 +337,7 @@
 <section id="scene-propose" class="scene">
   <div class="paper-card rounded-3xl p-8 md:p-12 max-w-md w-full text-center relative">
     <img id="profilePhoto" src="" alt="profile" class="profile-photo mx-auto -mt-20 md:-mt-24 mb-6 fade-up" />
-    <h2 id="proposeText" class="font-serif-kr text-xl md:text-2xl font-bold leading-relaxed mb-10 fade-up whitespace-pre-line"></h2>
+    <h2 id="proposeText" class="font-display text-xl md:text-2xl font-bold leading-relaxed mb-10 fade-up whitespace-pre-line"></h2>
     <div class="relative flex items-center justify-center gap-5 h-16">
       <button id="yesBtn" class="btn-primary px-10 py-3.5 rounded-full font-semibold text-lg">YES</button>
       <button id="noBtn" class="btn-ghost px-10 py-3.5 rounded-full font-semibold text-lg">NO</button>
@@ -350,7 +348,7 @@
 <!-- ================= SCENE 3: Schedule & menu ================= -->
 <section id="scene-schedule" class="scene">
   <div class="paper-card rounded-3xl p-6 md:p-10 max-w-lg w-full max-h-[92vh] overflow-y-auto">
-    <h2 class="font-serif-kr text-xl md:text-2xl font-bold text-center mb-1 fade-up">날짜와 메뉴를 골라주세요</h2>
+    <h2 class="font-display text-xl md:text-2xl font-bold text-center mb-1 fade-up">날짜와 메뉴를 골라주세요</h2>
     <p class="text-center text-sm text-[var(--wood-600)] mb-6 fade-up">비어있는 날짜만 선택할 수 있어요</p>
 
     <!-- calendar -->
@@ -383,7 +381,7 @@
 <section id="scene-confirm" class="scene">
   <div class="paper-card rounded-3xl p-10 md:p-14 max-w-md w-full text-center">
     <div class="text-4xl mb-6 fade-up">🥰</div>
-    <h2 id="confirmText" class="font-serif-kr text-2xl md:text-[28px] font-bold leading-relaxed mb-3 fade-up whitespace-pre-line"></h2>
+    <h2 id="confirmText" class="font-display text-2xl md:text-[28px] font-bold leading-relaxed mb-3 fade-up whitespace-pre-line"></h2>
     <p class="text-sm text-[var(--wood-600)] mb-10 fade-up">약속이 저장되고 있어요…</p>
     <button id="confirmOkBtn" class="btn-primary w-full py-3.5 rounded-full font-semibold flex items-center justify-center gap-2 fade-up">
       <span id="confirmBtnLabel">확인하기</span>
@@ -395,7 +393,7 @@
 <!-- ================= SCENE 5: Finale (taste reveal) ================= -->
 <section id="scene-finale" class="scene">
   <div class="max-w-2xl w-full text-center px-2">
-    <h2 class="font-serif-kr text-xl md:text-2xl font-bold mb-2 fade-up">만나기 전에, 저의 취향을<br/>먼저 소개해 드릴게요! 🎵</h2>
+    <h2 class="font-display text-xl md:text-2xl font-bold mb-2 fade-up">만나기 전에, 저의 취향을<br/>먼저 소개해 드릴게요! 🎵</h2>
     <p class="text-sm text-[var(--wood-600)] mb-10 fade-up">카드를 눌러보세요</p>
     <div id="tasteCards" class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
       <!-- movie card -->
@@ -408,7 +406,7 @@
           </div>
           <div class="flip-back">
             <div class="text-xs uppercase tracking-widest opacity-70 mb-2">Life Movie</div>
-            <div id="movieText" class="font-serif-kr text-lg font-bold leading-snug"></div>
+            <div id="movieText" class="font-display text-lg font-bold leading-snug"></div>
           </div>
         </div>
       </div>
@@ -422,7 +420,7 @@
           </div>
           <div class="flip-back">
             <div class="text-xs uppercase tracking-widest opacity-70 mb-2">Life Music</div>
-            <div id="musicText" class="font-serif-kr text-lg font-bold leading-snug"></div>
+            <div id="musicText" class="font-display text-lg font-bold leading-snug"></div>
           </div>
         </div>
       </div>
@@ -434,7 +432,7 @@
 <!-- ================= Admin login modal ================= -->
 <div id="adminLoginModal" class="modal-backdrop hidden">
   <div class="paper-card rounded-2xl p-8 max-w-xs w-full">
-    <h3 class="font-serif-kr text-lg font-bold mb-4 text-center">관리자 로그인</h3>
+    <h3 class="font-display text-lg font-bold mb-4 text-center">관리자 로그인</h3>
     <input id="adminPasswordInput" type="password" placeholder="비밀번호"
       class="w-full text-center py-2.5 px-4 mb-4 rounded-lg" style="background:var(--wood-100); border:1px solid var(--wood-300);" />
     <p id="adminLoginError" class="text-xs text-red-500 text-center mb-3 hidden">비밀번호가 올바르지 않아요</p>
@@ -449,7 +447,7 @@
 <div id="adminPanelModal" class="modal-backdrop hidden">
   <div class="paper-card rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
     <div class="flex items-center justify-between px-6 pt-5">
-      <h3 class="font-serif-kr text-lg font-bold">관리자 패널</h3>
+      <h3 class="font-display text-lg font-bold">관리자 패널</h3>
       <button id="adminCloseBtn" class="text-xl text-[var(--wood-600)] hover:text-[var(--ink-900)]">✕</button>
     </div>
     <div class="flex gap-1 px-6 mt-4 border-b" style="border-color: var(--wood-300);">
@@ -647,6 +645,12 @@ function toast(msg) {
   setTimeout(() => el.classList.remove("show"), 2400);
 }
 
+// Surface unexpected JS errors instead of the page silently doing nothing.
+window.addEventListener("error", (e) => {
+  console.error(e.error || e.message);
+  toast(`오류: ${e.message}`);
+});
+
 function fmtDate(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
@@ -681,11 +685,16 @@ function switchScene(fromId, toId) {
 const nameInput = document.getElementById("nameInput");
 const nameNextBtn = document.getElementById("nameNextBtn");
 
-nameInput.addEventListener("input", () => {
+function syncNameNextBtn() {
   nameNextBtn.disabled = nameInput.value.trim().length === 0;
-});
+}
+// 'input' covers most typing; 'compositionend' + 'keyup' are backup for Korean IME
+// composition, where some mobile browsers delay/skip the 'input' event mid-composition.
+nameInput.addEventListener("input", syncNameNextBtn);
+nameInput.addEventListener("compositionend", syncNameNextBtn);
+nameInput.addEventListener("keyup", syncNameNextBtn);
 nameInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !nameNextBtn.disabled) nameNextBtn.click();
+  if (e.key === "Enter" && !e.isComposing && !nameNextBtn.disabled) nameNextBtn.click();
 });
 
 nameNextBtn.addEventListener("click", () => {
