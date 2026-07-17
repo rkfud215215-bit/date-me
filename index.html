@@ -9,8 +9,6 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- Supabase JS (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- Google Identity Services (for Google Calendar OAuth) -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <style>
@@ -44,6 +42,15 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+  /* background-clip:text also strips color emoji down to a flat tint. Wrap any emoji
+     inside gradient-text in this span to opt it back out and keep its native color. */
+  .gradient-text .emoji-safe {
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    -webkit-text-fill-color: initial;
+    color: initial;
+    background: none;
   }
 
   /* warm wood/beige palette */
@@ -194,7 +201,7 @@
   }
 
   /* Card flip */
-  .flip-card { perspective: 1200px; height: 200px; }
+  .flip-card { perspective: 1200px; height: 340px; }
   .flip-inner {
     position: relative; width: 100%; height: 100%;
     transition: transform 0.7s cubic-bezier(.22,.61,.36,1);
@@ -212,7 +219,17 @@
     text-align: center;
   }
   .flip-front { background: linear-gradient(145deg, var(--wood-300), var(--wood-200)); border: 1px solid var(--wood-400); }
-  .flip-back { background: var(--ink-800); color: #FBF7F0; transform: rotateY(180deg); }
+  .flip-back {
+    background: var(--ink-800);
+    color: #FBF7F0;
+    transform: rotateY(180deg);
+    justify-content: flex-start;
+    overflow: hidden;
+  }
+  .flip-back #movieText, .flip-back #musicText {
+    min-height: 0;
+    max-height: 100%;
+  }
 
   @keyframes floatUp {
     from { opacity: 0; transform: translateY(24px); }
@@ -337,11 +354,6 @@
   const SUPABASE_URL = "https://hssifqqzfxwmjvdgdtsc.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_GaiDq9NdnkOITfvy50OGbg_yt6606qC";
 
-  // ---- Google Calendar API ----
-  const GOOGLE_CLIENT_ID = "129585867907-ij8khkfnku7vpkgrbtpd6sqd0c5alc6q.apps.googleusercontent.com";
-  const GOOGLE_API_KEY = "AIzaSyDL67Lgbx-LpM21Q7lqvS68O164RMgJsqQ"; // restrict this to Calendar API + HTTP referrers before deploying
-  const GOOGLE_CALENDAR_ID = "primary";                    // calendar to read/write events on
-
   // ---- Admin ----
   const ADMIN_PASSWORD = "2174";
 
@@ -434,7 +446,7 @@
   <div class="paper-card rounded-3xl p-10 md:p-14 max-w-md w-full text-center">
     <div class="text-4xl mb-6 fade-up">🥰</div>
     <h2 id="confirmText" class="font-display gradient-text text-2xl md:text-[30px] leading-snug mb-3 fade-up whitespace-pre-line"></h2>
-    <p class="text-sm text-[var(--wood-600)] mb-10 fade-up">약속이 저장되고 있어요…</p>
+    <p id="confirmCaption" class="text-sm text-[var(--wood-600)] mb-10 fade-up">약속이 저장되고 있어요…</p>
     <button id="confirmOkBtn" class="btn-primary w-full py-3.5 rounded-full font-semibold flex items-center justify-center gap-2 fade-up">
       <span id="confirmBtnLabel">확인하기</span>
       <span id="confirmSpinner" class="spinner hidden"></span>
@@ -457,8 +469,8 @@
             <div class="text-xs text-[var(--wood-500)] mt-2">눌러서 확인하기</div>
           </div>
           <div class="flip-back">
-            <div class="text-xs uppercase tracking-widest opacity-70 mb-2">Life Movie</div>
-            <div id="movieText" class="font-display text-lg font-bold leading-snug"></div>
+            <div class="text-xs uppercase tracking-widest opacity-70 mb-2 shrink-0">Life Movie</div>
+            <div id="movieText" class="font-display text-base font-bold leading-snug whitespace-pre-line overflow-y-auto"></div>
           </div>
         </div>
       </div>
@@ -471,8 +483,12 @@
             <div class="text-xs text-[var(--wood-500)] mt-2">눌러서 확인하기</div>
           </div>
           <div class="flip-back">
-            <div class="text-xs uppercase tracking-widest opacity-70 mb-2">Life Music</div>
-            <div id="musicText" class="font-display text-lg font-bold leading-snug"></div>
+            <div class="text-xs uppercase tracking-widest opacity-70 mb-2 shrink-0">Life Music</div>
+            <div id="musicText" class="font-display text-base font-bold leading-snug whitespace-pre-line overflow-y-auto"></div>
+            <div id="musicEmbedWrap" class="w-full mt-2 shrink-0 hidden">
+              <iframe id="musicEmbed" allow="autoplay *; encrypted-media *;" frameborder="0"
+                style="width:100%; height:150px; border-radius:12px; overflow:hidden;"></iframe>
+            </div>
           </div>
         </div>
       </div>
@@ -512,8 +528,7 @@
 
       <!-- schedule mgmt -->
       <div id="adminTab-schedule" class="admin-panel">
-        <p class="text-sm text-[var(--wood-600)] mb-3">날짜를 클릭해서 예약 불가(차단) 상태를 토글하세요. 진한 배경 = 차단됨, 연한 배경 = 구글 캘린더 일정 있음.</p>
-        <button id="syncGoogleBusyBtn" class="btn-ghost w-full py-2 rounded-full text-xs font-semibold mb-4">📅 구글 캘린더에서 바쁜 날짜 가져오기</button>
+        <p class="text-sm text-[var(--wood-600)] mb-4">날짜를 클릭해서 예약 불가(차단) 상태를 토글하세요. 진한 배경 = 차단됨(직접 차단했거나 이미 예약된 날짜).</p>
         <div class="flex items-center justify-between mb-3">
           <button id="adminCalPrevBtn" class="w-8 h-8 rounded-full hover:bg-[var(--wood-200)]">‹</button>
           <span id="adminCalMonthLabel" class="font-semibold"></span>
@@ -538,8 +553,7 @@
                 <th class="py-2 pr-4">이름</th>
                 <th class="py-2 pr-4">날짜</th>
                 <th class="py-2 pr-4">메뉴</th>
-                <th class="py-2 pr-4">신청 시각</th>
-                <th class="py-2"></th>
+                <th class="py-2">신청 시각</th>
               </tr>
             </thead>
             <tbody id="reservationsTableBody"></tbody>
@@ -552,11 +566,18 @@
       <div id="adminTab-taste" class="admin-panel hidden">
         <div class="mb-5">
           <label class="text-sm font-semibold block mb-2">🎬 인생 영화</label>
-          <textarea id="adminMovieInput" rows="2" class="w-full p-3 rounded-lg text-sm" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+          <p class="text-xs text-[var(--wood-500)] mb-2">블로그 글처럼 자유롭게 길게 써도 돼요. 줄바꿈은 그대로 반영돼요.</p>
+          <textarea id="adminMovieInput" rows="8" class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
         </div>
         <div class="mb-5">
           <label class="text-sm font-semibold block mb-2">🎧 인생 음악</label>
-          <textarea id="adminMusicInput" rows="2" class="w-full p-3 rounded-lg text-sm" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+          <textarea id="adminMusicInput" rows="8" class="w-full p-3 rounded-lg text-sm leading-relaxed" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+        </div>
+        <div class="mb-5">
+          <label class="text-sm font-semibold block mb-2">🎧 Apple Music 플레이리스트 링크 (선택)</label>
+          <p class="text-xs text-[var(--wood-500)] mb-2">Apple Music 앱/웹에서 플레이리스트 "공유" 링크를 그대로 붙여넣으면 카드에 재생 위젯이 떠요.</p>
+          <input id="adminMusicPlaylistInput" type="url" placeholder="https://music.apple.com/kr/playlist/..."
+            class="w-full p-3 rounded-lg text-sm" style="background:var(--wood-100); border:1px solid var(--wood-300);" />
         </div>
         <button id="saveTasteBtn" class="btn-primary px-6 py-2.5 rounded-full text-sm font-semibold">저장하기</button>
       </div>
@@ -614,13 +635,9 @@ const state = {
   calViewMonth: new Date().getMonth(), // 0-indexed
   adminCalViewYear: new Date().getFullYear(),
   adminCalViewMonth: new Date().getMonth(),
-  busyDates: new Set(),   // from Google Calendar
-  blockedDates: new Set(),// from Supabase admin_blocked_dates
-  taste: { movie: "", music: "" },
+  blockedDates: new Set(),// from Supabase blocked_dates
+  taste: { movie: "", music: "", musicPlaylistUrl: "" },
   photoUrl: DEFAULT_PROFILE_PHOTO_URL,
-  googleTokenClient: null,
-  googleAccessToken: null,
-  gapiReady: false,
   // profile photo crop tool state
   cropNaturalW: 0,
   cropNaturalH: 0,
@@ -676,9 +693,10 @@ function initSupabase() {
     id int primary key default 1,
     movie text,
     music text,
-    photo_url text
+    photo_url text,
+    music_playlist_url text
   );
-  insert into profile_taste (id, movie, music, photo_url) values (1, '', '', null);
+  insert into profile_taste (id, movie, music, photo_url, music_playlist_url) values (1, '', '', null, null);
 
   -- Enable RLS + policies allowing anon select/insert as appropriate for your use case.
 
@@ -754,7 +772,7 @@ nameInput.addEventListener("keydown", (e) => {
 nameNextBtn.addEventListener("click", () => {
   state.name = nameInput.value.trim();
   document.getElementById("profilePhoto").src = state.photoUrl;
-  document.getElementById("proposeText").textContent = `${state.name}님, 저와 데이트 하실래요? ☕`;
+  document.getElementById("proposeText").innerHTML = `${escapeHtml(state.name)}님, 저와 데이트 하실래요? <span class="emoji-safe">☕</span>`;
   switchScene("scene-intro", "scene-propose");
   positionNoBtnAtRest();
 });
@@ -799,10 +817,6 @@ yesBtn.addEventListener("click", () => {
   noBtnPositioned = false;
   switchScene("scene-propose", "scene-schedule");
   renderMenuGrid();
-  // Blocked dates come from Supabase's blocked_dates table only -- visitors never see
-  // a Google sign-in prompt. The admin syncs their real Google Calendar busy dates
-  // into that table from the admin panel's schedule tab (their own authenticated
-  // session), which is what actually disables those dates here.
   renderCalendar();
 });
 
@@ -828,7 +842,7 @@ function renderMenuGrid() {
 }
 
 function isDateDisabled(dateStr) {
-  return state.busyDates.has(dateStr) || state.blockedDates.has(dateStr);
+  return state.blockedDates.has(dateStr);
 }
 
 function renderCalendar() {
@@ -887,18 +901,14 @@ function updateConfirmScheduleBtn() {
 
 document.getElementById("confirmScheduleBtn").addEventListener("click", async () => {
   const menuLabel = MENUS.find((m) => m.id === state.selectedMenu)?.label.split(" ")[0] || "";
-  document.getElementById("confirmText").textContent =
-    `${state.name}님, ${fmtDateKorean(state.selectedDate)}에\n${menuLabel} 먹으러 가요!\n그때 봬요! 🥰`;
+  document.getElementById("confirmText").innerHTML =
+    `${escapeHtml(state.name)}님, ${fmtDateKorean(state.selectedDate)}에<br/>${escapeHtml(menuLabel)} 먹으러 가요!<br/>그때 봬요! <span class="emoji-safe">🥰</span>`;
   switchScene("scene-schedule", "scene-confirm");
   await saveReservation();
 });
 
 /* =========================================================================
    SCENE 4: confirm -> save to Supabase
-   (Google Calendar sync is deliberately NOT triggered here -- that would pop up a
-   Google sign-in prompt for the visitor, which is wrong. Instead the admin adds
-   confirmed reservations to their own calendar from the admin panel, where any
-   Google auth happens in the owner's own session. See ADMIN section below.)
 ========================================================================= */
 async function saveReservation() {
   const btnLabel = document.getElementById("confirmBtnLabel");
@@ -915,9 +925,18 @@ async function saveReservation() {
         menu: state.selectedMenu,
       });
       if (error) console.error("Supabase insert error:", error);
+
+      // Block this date immediately so a second visitor can't also book it.
+      const { error: blockError } = await supabaseClient
+        .from("blocked_dates")
+        .upsert({ date: state.selectedDate }, { onConflict: "date" });
+      if (blockError) console.error("blocked_dates upsert error:", blockError);
+      else state.blockedDates.add(state.selectedDate);
     }
+    document.getElementById("confirmCaption").textContent = "약속이 저장됐어요!";
   } catch (err) {
     console.error(err);
+    document.getElementById("confirmCaption").textContent = "저장 중 문제가 있었지만 계속 진행할 수 있어요";
   } finally {
     okBtn.disabled = false;
     spinner.classList.add("hidden");
@@ -935,166 +954,37 @@ document.getElementById("confirmOkBtn").addEventListener("click", async () => {
 ========================================================================= */
 async function loadTasteAndRenderCards() {
   if (supabaseClient) {
-    const { data, error } = await supabaseClient.from("profile_taste").select("movie, music").eq("id", 1).single();
+    const { data, error } = await supabaseClient
+      .from("profile_taste")
+      .select("movie, music, music_playlist_url")
+      .eq("id", 1)
+      .single();
     if (!error && data) {
       state.taste.movie = data.movie || "아직 등록되지 않았어요";
       state.taste.music = data.music || "아직 등록되지 않았어요";
+      state.taste.musicPlaylistUrl = data.music_playlist_url || "";
     }
   }
   document.getElementById("movieText").textContent = state.taste.movie || "아직 등록되지 않았어요";
   document.getElementById("musicText").textContent = state.taste.music || "아직 등록되지 않았어요";
+  renderMusicEmbed(state.taste.musicPlaylistUrl);
+}
+
+function renderMusicEmbed(playlistUrl) {
+  const wrap = document.getElementById("musicEmbedWrap");
+  const iframe = document.getElementById("musicEmbed");
+  if (playlistUrl && playlistUrl.includes("music.apple.com")) {
+    iframe.src = playlistUrl.replace("music.apple.com", "embed.music.apple.com");
+    wrap.classList.remove("hidden");
+  } else {
+    iframe.src = "";
+    wrap.classList.add("hidden");
+  }
 }
 
 document.querySelectorAll(".flip-card").forEach((card) => {
   card.addEventListener("click", () => card.classList.toggle("flipped"));
 });
-
-/* =========================================================================
-   GOOGLE CALENDAR API (GIS + gapi client)
-========================================================================= */
-function loadGapiClient() {
-  return new Promise((resolve) => {
-    if (window.gapi) { resolve(); return; }
-    const script = document.createElement("script");
-    script.src = "https://apis.google.com/js/api.js";
-    script.onload = () => resolve();
-    document.head.appendChild(script);
-  });
-}
-
-async function ensureGapiInited() {
-  if (state.gapiReady) return;
-  await loadGapiClient();
-  await new Promise((resolve) => window.gapi.load("client", resolve));
-  await window.gapi.client.init({
-    apiKey: GOOGLE_API_KEY,
-    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
-  });
-  state.gapiReady = true;
-}
-
-function ensureGoogleAuth() {
-  return new Promise((resolve, reject) => {
-    if (state.googleAccessToken) { resolve(state.googleAccessToken); return; }
-    if (!window.google || !window.google.accounts) { reject(new Error("Google Identity Services not loaded")); return; }
-    if (!state.googleTokenClient) {
-      state.googleTokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
-        callback: (resp) => {
-          if (resp.error) { reject(resp); return; }
-          state.googleAccessToken = resp.access_token;
-          resolve(resp.access_token);
-        },
-      });
-    }
-    state.googleTokenClient.requestAccessToken({ prompt: "" });
-  });
-}
-
-// Both functions below are only ever called from the ADMIN panel (owner's own
-// browser session) -- never from the visitor-facing flow -- so the Google sign-in
-// popup they trigger is always the site owner's, never a date prospect's.
-
-async function syncGoogleBusyDatesToAdmin() {
-  if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_OAUTH_CLIENT_ID" || GOOGLE_API_KEY === "YOUR_GOOGLE_API_KEY") {
-    toast("Google Calendar API가 설정되지 않았어요");
-    return;
-  }
-  const btn = document.getElementById("syncGoogleBusyBtn");
-  btn.disabled = true;
-  try {
-    await ensureGapiInited();
-    await ensureGoogleAuth();
-    window.gapi.client.setToken({ access_token: state.googleAccessToken });
-
-    const timeMin = new Date();
-    const timeMax = new Date();
-    timeMax.setDate(timeMax.getDate() + 90); // look 90 days ahead
-
-    const res = await window.gapi.client.calendar.events.list({
-      calendarId: GOOGLE_CALENDAR_ID,
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      singleEvents: true,
-      orderBy: "startTime",
-      maxResults: 250,
-    });
-
-    const events = res.result.items || [];
-    const busyDates = new Set();
-    events.forEach((ev) => {
-      const isAllDay = !!ev.start?.date;
-      const startStr = ev.start?.date || ev.start?.dateTime;
-      const endStr = ev.end?.date || ev.end?.dateTime;
-      if (!startStr) return;
-
-      let cur = new Date(startStr.slice(0, 10));
-      let endDate;
-      if (isAllDay) {
-        // Google's all-day "end.date" is exclusive of the last day.
-        endDate = new Date((endStr || startStr).slice(0, 10));
-      } else {
-        // timed event: just block the single day it occurs on.
-        endDate = new Date(cur);
-        endDate.setDate(endDate.getDate() + 1);
-      }
-
-      while (cur < endDate) {
-        busyDates.add(fmtDate(cur.getFullYear(), cur.getMonth(), cur.getDate()));
-        cur.setDate(cur.getDate() + 1);
-      }
-    });
-
-    state.busyDates = busyDates;
-    if (supabaseClient && busyDates.size > 0) {
-      const rows = [...busyDates].map((date) => ({ date }));
-      const { error } = await supabaseClient.from("blocked_dates").upsert(rows, { onConflict: "date" });
-      if (error) console.error("blocked_dates upsert error:", error);
-      await loadBlockedDates();
-    }
-    renderAdminCalendar();
-    toast(`구글 캘린더 일정 ${busyDates.size}일 반영됐어요`);
-  } catch (err) {
-    console.error("Google Calendar 조회 실패:", err);
-    toast("캘린더 정보를 불러오지 못했어요");
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function addReservationToGoogleCalendar(name, dateStr, menuId, btn) {
-  if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_OAUTH_CLIENT_ID" || GOOGLE_API_KEY === "YOUR_GOOGLE_API_KEY") {
-    toast("Google Calendar API가 설정되지 않았어요");
-    return;
-  }
-  btn.disabled = true;
-  const originalLabel = btn.textContent;
-  btn.textContent = "등록 중…";
-  try {
-    await ensureGapiInited();
-    await ensureGoogleAuth();
-    window.gapi.client.setToken({ access_token: state.googleAccessToken });
-
-    const menuLabel = MENUS.find((m) => m.id === menuId)?.label || menuId;
-    await window.gapi.client.calendar.events.insert({
-      calendarId: GOOGLE_CALENDAR_ID,
-      resource: {
-        summary: `${name}님과 데이트 (${menuLabel})`,
-        description: `예약 시스템을 통해 등록된 일정입니다.`,
-        start: { date: dateStr },
-        end: { date: dateStr },
-      },
-    });
-    btn.textContent = "등록 완료 ✓";
-    toast("캘린더에 등록됐어요");
-  } catch (err) {
-    console.error("Google Calendar 일정 등록 실패:", err);
-    btn.textContent = originalLabel;
-    btn.disabled = false;
-    toast("캘린더 등록에 실패했어요");
-  }
-}
 
 /* =========================================================================
    ADMIN: gear button -> login -> panel
@@ -1179,18 +1069,13 @@ function renderAdminCalendar() {
     const dateStr = fmtDate(y, m, d);
     const cell = document.createElement("div");
     const isBlocked = state.blockedDates.has(dateStr);
-    const isBusy = state.busyDates.has(dateStr);
     cell.className = "cal-day available";
     cell.textContent = d;
     if (isBlocked) {
       cell.style.background = "#E8B4A8";
       cell.style.color = "#5A2E24";
       cell.style.fontWeight = "700";
-    } else if (isBusy) {
-      cell.style.background = "var(--wood-200)";
-      cell.style.color = "var(--wood-500)";
     }
-    cell.title = isBusy ? "구글 캘린더 일정 있음" : "";
     cell.addEventListener("click", () => toggleBlockedDate(dateStr));
     grid.appendChild(cell);
   }
@@ -1207,8 +1092,6 @@ async function toggleBlockedDate(dateStr) {
   }
   renderAdminCalendar();
 }
-
-document.getElementById("syncGoogleBusyBtn").addEventListener("click", syncGoogleBusyDatesToAdmin);
 
 document.getElementById("adminCalPrevBtn").addEventListener("click", () => {
   state.adminCalViewMonth--;
@@ -1248,12 +1131,8 @@ async function loadReservationsTable() {
       <td class="py-2 pr-4">${escapeHtml(row.name)}</td>
       <td class="py-2 pr-4">${row.date}</td>
       <td class="py-2 pr-4">${escapeHtml(menuLabel)}</td>
-      <td class="py-2 pr-4 text-xs text-[var(--wood-500)]">${new Date(row.created_at).toLocaleString("ko-KR")}</td>
-      <td class="py-2"><button class="add-to-gcal-btn btn-ghost px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">📅 캘린더 등록</button></td>
+      <td class="py-2 text-xs text-[var(--wood-500)]">${new Date(row.created_at).toLocaleString("ko-KR")}</td>
     `;
-    tr.querySelector(".add-to-gcal-btn").addEventListener("click", (e) => {
-      addReservationToGoogleCalendar(row.name, row.date, row.menu, e.currentTarget);
-    });
     tbody.appendChild(tr);
   });
 }
@@ -1269,10 +1148,15 @@ function escapeHtml(str) {
 /* ---- Admin: taste editor ---- */
 async function loadTasteEditor() {
   if (!supabaseClient) return;
-  const { data, error } = await supabaseClient.from("profile_taste").select("movie, music").eq("id", 1).single();
+  const { data, error } = await supabaseClient
+    .from("profile_taste")
+    .select("movie, music, music_playlist_url")
+    .eq("id", 1)
+    .single();
   if (!error && data) {
     document.getElementById("adminMovieInput").value = data.movie || "";
     document.getElementById("adminMusicInput").value = data.music || "";
+    document.getElementById("adminMusicPlaylistInput").value = data.music_playlist_url || "";
   }
 }
 
@@ -1280,10 +1164,14 @@ document.getElementById("saveTasteBtn").addEventListener("click", async () => {
   if (!supabaseClient) { toast("Supabase가 설정되지 않았어요"); return; }
   const movie = document.getElementById("adminMovieInput").value.trim();
   const music = document.getElementById("adminMusicInput").value.trim();
-  const { error } = await supabaseClient.from("profile_taste").upsert({ id: 1, movie, music });
+  const musicPlaylistUrl = document.getElementById("adminMusicPlaylistInput").value.trim();
+  const { error } = await supabaseClient
+    .from("profile_taste")
+    .upsert({ id: 1, movie, music, music_playlist_url: musicPlaylistUrl || null });
   if (!error) {
     state.taste.movie = movie;
     state.taste.music = music;
+    state.taste.musicPlaylistUrl = musicPlaylistUrl;
     toast("취향이 저장되었어요");
   } else {
     toast("저장에 실패했어요");
