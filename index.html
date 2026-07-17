@@ -151,6 +151,23 @@
     color: var(--ink-800);
   }
 
+  /* Bigger variant for the full "about me" modal, per request */
+  .taste-blog-big { max-height: none; }
+  .taste-blog-big .profile-photo {
+    width: 180px;
+    height: 180px;
+    border-radius: 32px;
+  }
+  .taste-blog-big .taste-section { margin-bottom: 40px; }
+  .taste-blog-big .taste-heading {
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+  .taste-blog-big .taste-body {
+    font-size: 17px;
+    line-height: 1.85;
+  }
+
   .btn-primary {
     background: var(--ink-800);
     color: #FBF7F0;
@@ -374,12 +391,12 @@
 </button>
 
 <div id="aboutMeModal" class="modal-backdrop hidden">
-  <div class="paper-card rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
-    <div class="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
-      <h3 class="font-display text-lg">박가령 알아보기</h3>
-      <button id="aboutMeCloseBtn" class="text-xl text-[var(--wood-600)] hover:text-[var(--ink-900)]">✕</button>
+  <div class="paper-card rounded-2xl w-[94vw] max-w-3xl h-[92vh] flex flex-col overflow-hidden">
+    <div class="flex items-center justify-between px-8 pt-7 pb-4 shrink-0">
+      <h3 class="font-display gradient-text text-2xl md:text-3xl">박가령 알아보기</h3>
+      <button id="aboutMeCloseBtn" class="text-3xl leading-none text-[var(--wood-600)] hover:text-[var(--ink-900)]">✕</button>
     </div>
-    <div id="aboutMeModalContent" class="taste-blog flex-1 px-6 pb-6 text-left" style="max-height:none;"></div>
+    <div id="aboutMeModalContent" class="taste-blog taste-blog-big flex-1 px-8 pb-10 text-left" style="max-height:none;"></div>
   </div>
 </div>
 
