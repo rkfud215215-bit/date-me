@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>데이트 신청서 ☕</title>
+
+<!-- Tailwind CSS (CDN) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Supabase JS (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Google Identity Services (for Google Calendar OAuth) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior: none; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F7F1E8;
+    color: #4A3F35;
+  }
+  .bg-photo {
+    position: fixed;
+    inset: 0;
+    z-index: -20;
+    background-image: url('assets/background.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+  .bg-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    background: linear-gradient(180deg, rgba(247,241,232,0.55), rgba(247,241,232,0.75));
+  }
+  .font-serif-kr { font-family: 'Gowun Batang', serif; }
+
+  /* warm wood/beige palette */
+  :root{
+    --wood-50:#FBF7F0;
+    --wood-100:#F7F1E8;
+    --wood-200:#EFE3D0;
+    --wood-300:#E3D2B4;
+    --wood-400:#CBAE85;
+    --wood-500:#B8926A;
+    --wood-600:#9C7650;
+    --wood-700:#7C5C3E;
+    --ink-800:#4A3F35;
+    --ink-900:#332B24;
+    --accent:#C98A6B;
+  }
+
+  .scene {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+    pointer-events: none;
+    transition: opacity 0.65s cubic-bezier(.22,.61,.36,1), transform 0.65s cubic-bezier(.22,.61,.36,1);
+  }
+  .scene.active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+  .scene.leaving {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.98);
+  }
+
+  .paper-card {
+    background: #FFFDF9;
+    border: 1px solid var(--wood-300);
+    box-shadow: 0 10px 40px -10px rgba(124, 92, 62, 0.25), 0 2px 8px rgba(124,92,62,0.08);
+  }
+
+  .btn-primary {
+    background: var(--ink-800);
+    color: #FBF7F0;
+    transition: all 0.2s ease;
+  }
+  .btn-primary:hover { background: var(--ink-900); transform: translateY(-1px); box-shadow: 0 8px 20px -6px rgba(51,43,36,0.4); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.4; pointer-events: none; }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1.5px solid var(--wood-400);
+    color: var(--ink-800);
+    transition: all 0.2s ease;
+  }
+  .btn-ghost:hover { background: var(--wood-200); }
+
+  #noBtn {
+    position: fixed;
+    transition: left 0.28s cubic-bezier(.34,1.56,.64,1), top 0.28s cubic-bezier(.34,1.56,.64,1);
+    z-index: 40;
+  }
+
+  input[type="text"] {
+    background: #FFFDF9;
+    border-bottom: 2px solid var(--wood-400);
+    transition: border-color 0.2s ease;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--ink-800); }
+
+  .menu-card {
+    cursor: pointer;
+    border: 2px solid var(--wood-300);
+    background: #FFFDF9;
+    transition: all 0.2s ease;
+  }
+  .menu-card:hover { border-color: var(--wood-500); transform: translateY(-2px); }
+  .menu-card.selected {
+    border-color: var(--ink-800);
+    background: var(--wood-200);
+    box-shadow: 0 6px 16px -6px rgba(51,43,36,0.3);
+  }
+
+  /* Calendar */
+  .cal-day {
+    aspect-ratio: 1/1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+  }
+  .cal-day.available:hover { background: var(--wood-200); }
+  .cal-day.selected { background: var(--ink-800); color: #FBF7F0; font-weight: 700; }
+  .cal-day.disabled { color: var(--wood-400); cursor: not-allowed; text-decoration: line-through; opacity: 0.5; }
+  .cal-day.empty { visibility: hidden; }
+  .cal-day.today::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Card flip */
+  .flip-card { perspective: 1200px; height: 200px; }
+  .flip-inner {
+    position: relative; width: 100%; height: 100%;
+    transition: transform 0.7s cubic-bezier(.22,.61,.36,1);
+    transform-style: preserve-3d;
+  }
+  .flip-card.flipped .flip-inner { transform: rotateY(180deg); }
+  .flip-front, .flip-back {
+    position: absolute; inset: 0;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: 20px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 20px;
+    text-align: center;
+  }
+  .flip-front { background: linear-gradient(145deg, var(--wood-300), var(--wood-200)); border: 1px solid var(--wood-400); }
+  .flip-back { background: var(--ink-800); color: #FBF7F0; transform: rotateY(180deg); }
+
+  @keyframes floatUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { animation: floatUp 0.6s cubic-bezier(.22,.61,.36,1) both; }
+
+  .profile-photo {
+    width: 132px; height: 132px;
+    border-radius: 24px;
+    object-fit: cover;
+    box-shadow: 0 8px 24px -6px rgba(74,63,53,0.35);
+    border: 4px solid #FFFDF9;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--wood-400); border-radius: 10px; }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(251,247,240,0.35);
+    border-top-color: #FBF7F0;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(51,43,36,0.55);
+    backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .admin-tab {
+    padding: 10px 16px;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    color: var(--wood-600);
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.15s ease;
+  }
+  .admin-tab.active { border-bottom-color: var(--ink-800); color: var(--ink-800); }
+
+  #adminGearBtn {
+    opacity: 0.06;
+    transition: opacity 0.2s ease;
+  }
+  #adminGearBtn:hover { opacity: 0.5; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink-900);
+    color: #FBF7F0;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 200;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Admin: profile photo crop tool */
+  .crop-viewport {
+    width: 260px;
+    height: 260px;
+    margin: 0 auto;
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+    background: var(--wood-100);
+    border: 2px dashed var(--wood-400);
+    touch-action: none;
+    cursor: grab;
+  }
+  .crop-viewport.has-image { cursor: move; border-style: solid; }
+  .crop-viewport.dragging { cursor: grabbing; }
+  .crop-viewport img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform-origin: center;
+    max-width: none;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
+  }
+  .crop-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 12px;
+    color: var(--wood-500);
+    padding: 20px;
+  }
+  .current-photo-preview {
+    width: 72px; height: 72px;
+    border-radius: 14px;
+    object-fit: cover;
+    border: 2px solid var(--wood-300);
+  }
+</style>
+</head>
+<body class="min-h-screen w-full relative overflow-hidden">
+
+<!-- ============== CONFIG (fill these in before deploying) ============== -->
+<script>
+  // ---- Supabase ----
+  // Reusing the same Supabase project as the Tokyo trip planner — this app's tables
+  // (reservations / blocked_dates / profile_taste) are separate from that project's
+  // trip_data table, so nothing collides. anon key is intentionally public/client-safe.
+  const SUPABASE_URL = "https://hssifqqzfxwmjvdgdtsc.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_GaiDq9NdnkOITfvy50OGbg_yt6606qC";
+
+  // ---- Google Calendar API ----
+  const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_OAUTH_CLIENT_ID"; // OAuth 2.0 Client ID (Web application) — still needed, see chat
+  const GOOGLE_API_KEY = "AIzaSyDL67Lgbx-LpM21Q7lqvS68O164RMgJsqQ"; // restrict this to Calendar API + HTTP referrers before deploying
+  const GOOGLE_CALENDAR_ID = "primary";                    // calendar to read/write events on
+
+  // ---- Admin ----
+  const ADMIN_PASSWORD = "YOUR_ADMIN_PASSWORD"; // change before deploying!
+
+  // ---- Profile ----
+  // Shown until the admin uploads/crops a photo in the admin panel (which is then
+  // stored in Supabase Storage + the profile_taste.photo_url column for all visitors).
+  const DEFAULT_PROFILE_PHOTO_URL = "assets/profile-default.jpg";
+
+  // ---- Supabase Storage ----
+  const SUPABASE_STORAGE_BUCKET = "profile-photos"; // create this bucket (public) in Supabase dashboard
+</script>
+<!-- ======================================================================= -->
+
+<!-- background photo -->
+<div class="bg-photo"></div>
+<div class="bg-overlay"></div>
+
+<!-- hidden admin gear -->
+<button id="adminGearBtn" class="fixed bottom-3 left-3 z-30 w-8 h-8 flex items-center justify-center text-lg select-none" title="">
+  ⚙️
+</button>
+
+<!-- ================= SCENE 1: Intro (name input) ================= -->
+<section id="scene-intro" class="scene active">
+  <div class="paper-card rounded-3xl p-10 md:p-14 max-w-md w-full text-center fade-up">
+    <p class="text-sm tracking-widest text-[var(--wood-600)] mb-3 uppercase">Invitation</p>
+    <h1 class="font-serif-kr text-2xl md:text-3xl font-bold mb-8 leading-snug">당신의 이름을<br/>입력해주세요</h1>
+    <input id="nameInput" type="text" placeholder="이름을 적어주세요"
+      class="w-full text-center text-lg py-3 px-4 bg-transparent" maxlength="12" />
+    <button id="nameNextBtn" disabled
+      class="btn-primary w-full mt-8 py-3.5 rounded-full font-semibold">
+      다음으로
+    </button>
+  </div>
+</section>
+
+<!-- ================= SCENE 2: Date proposal (YES/NO) ================= -->
+<section id="scene-propose" class="scene">
+  <div class="paper-card rounded-3xl p-8 md:p-12 max-w-md w-full text-center relative">
+    <img id="profilePhoto" src="" alt="profile" class="profile-photo mx-auto -mt-20 md:-mt-24 mb-6 fade-up" />
+    <h2 id="proposeText" class="font-serif-kr text-xl md:text-2xl font-bold leading-relaxed mb-10 fade-up whitespace-pre-line"></h2>
+    <div class="relative flex items-center justify-center gap-5 h-16">
+      <button id="yesBtn" class="btn-primary px-10 py-3.5 rounded-full font-semibold text-lg">YES</button>
+      <button id="noBtn" class="btn-ghost px-10 py-3.5 rounded-full font-semibold text-lg">NO</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SCENE 3: Schedule & menu ================= -->
+<section id="scene-schedule" class="scene">
+  <div class="paper-card rounded-3xl p-6 md:p-10 max-w-lg w-full max-h-[92vh] overflow-y-auto">
+    <h2 class="font-serif-kr text-xl md:text-2xl font-bold text-center mb-1 fade-up">날짜와 메뉴를 골라주세요</h2>
+    <p class="text-center text-sm text-[var(--wood-600)] mb-6 fade-up">비어있는 날짜만 선택할 수 있어요</p>
+
+    <!-- calendar -->
+    <div class="mb-8 fade-up">
+      <div class="flex items-center justify-between mb-3">
+        <button id="calPrevBtn" class="w-9 h-9 rounded-full hover:bg-[var(--wood-200)] flex items-center justify-center text-lg">‹</button>
+        <span id="calMonthLabel" class="font-semibold text-[var(--ink-800)]"></span>
+        <button id="calNextBtn" class="w-9 h-9 rounded-full hover:bg-[var(--wood-200)] flex items-center justify-center text-lg">›</button>
+      </div>
+      <div class="grid grid-cols-7 gap-1 text-center text-xs text-[var(--wood-600)] mb-1">
+        <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+      </div>
+      <div id="calGrid" class="grid grid-cols-7 gap-1"></div>
+      <div id="calLoading" class="text-center text-xs text-[var(--wood-500)] mt-2 hidden">일정을 불러오는 중…</div>
+    </div>
+
+    <!-- menu -->
+    <div class="mb-8 fade-up">
+      <p class="font-semibold mb-3 text-[var(--ink-800)]">어떤 메뉴가 좋을까요?</p>
+      <div id="menuGrid" class="grid grid-cols-3 gap-3"></div>
+    </div>
+
+    <button id="confirmScheduleBtn" disabled class="btn-primary w-full py-3.5 rounded-full font-semibold fade-up">
+      약속 확정하기
+    </button>
+  </div>
+</section>
+
+<!-- ================= SCENE 4: Confirmation ================= -->
+<section id="scene-confirm" class="scene">
+  <div class="paper-card rounded-3xl p-10 md:p-14 max-w-md w-full text-center">
+    <div class="text-4xl mb-6 fade-up">🥰</div>
+    <h2 id="confirmText" class="font-serif-kr text-2xl md:text-[28px] font-bold leading-relaxed mb-3 fade-up whitespace-pre-line"></h2>
+    <p class="text-sm text-[var(--wood-600)] mb-10 fade-up">약속이 저장되고 있어요…</p>
+    <button id="confirmOkBtn" class="btn-primary w-full py-3.5 rounded-full font-semibold flex items-center justify-center gap-2 fade-up">
+      <span id="confirmBtnLabel">확인하기</span>
+      <span id="confirmSpinner" class="spinner hidden"></span>
+    </button>
+  </div>
+</section>
+
+<!-- ================= SCENE 5: Finale (taste reveal) ================= -->
+<section id="scene-finale" class="scene">
+  <div class="max-w-2xl w-full text-center px-2">
+    <h2 class="font-serif-kr text-xl md:text-2xl font-bold mb-2 fade-up">만나기 전에, 저의 취향을<br/>먼저 소개해 드릴게요! 🎵</h2>
+    <p class="text-sm text-[var(--wood-600)] mb-10 fade-up">카드를 눌러보세요</p>
+    <div id="tasteCards" class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
+      <!-- movie card -->
+      <div class="flip-card fade-up" data-card="movie">
+        <div class="flip-inner">
+          <div class="flip-front">
+            <div class="text-3xl mb-2">🎬</div>
+            <div class="font-semibold text-[var(--wood-700)]">인생 영화</div>
+            <div class="text-xs text-[var(--wood-500)] mt-2">눌러서 확인하기</div>
+          </div>
+          <div class="flip-back">
+            <div class="text-xs uppercase tracking-widest opacity-70 mb-2">Life Movie</div>
+            <div id="movieText" class="font-serif-kr text-lg font-bold leading-snug"></div>
+          </div>
+        </div>
+      </div>
+      <!-- music card -->
+      <div class="flip-card fade-up" data-card="music">
+        <div class="flip-inner">
+          <div class="flip-front">
+            <div class="text-3xl mb-2">🎧</div>
+            <div class="font-semibold text-[var(--wood-700)]">인생 음악</div>
+            <div class="text-xs text-[var(--wood-500)] mt-2">눌러서 확인하기</div>
+          </div>
+          <div class="flip-back">
+            <div class="text-xs uppercase tracking-widest opacity-70 mb-2">Life Music</div>
+            <div id="musicText" class="font-serif-kr text-lg font-bold leading-snug"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="text-sm text-[var(--wood-600)] mt-8 fade-up">그때 봬요! 👋</p>
+  </div>
+</section>
+
+<!-- ================= Admin login modal ================= -->
+<div id="adminLoginModal" class="modal-backdrop hidden">
+  <div class="paper-card rounded-2xl p-8 max-w-xs w-full">
+    <h3 class="font-serif-kr text-lg font-bold mb-4 text-center">관리자 로그인</h3>
+    <input id="adminPasswordInput" type="password" placeholder="비밀번호"
+      class="w-full text-center py-2.5 px-4 mb-4 rounded-lg" style="background:var(--wood-100); border:1px solid var(--wood-300);" />
+    <p id="adminLoginError" class="text-xs text-red-500 text-center mb-3 hidden">비밀번호가 올바르지 않아요</p>
+    <div class="flex gap-2">
+      <button id="adminLoginCancelBtn" class="btn-ghost flex-1 py-2.5 rounded-full text-sm font-semibold">취소</button>
+      <button id="adminLoginSubmitBtn" class="btn-primary flex-1 py-2.5 rounded-full text-sm font-semibold">입장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Admin panel modal ================= -->
+<div id="adminPanelModal" class="modal-backdrop hidden">
+  <div class="paper-card rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+    <div class="flex items-center justify-between px-6 pt-5">
+      <h3 class="font-serif-kr text-lg font-bold">관리자 패널</h3>
+      <button id="adminCloseBtn" class="text-xl text-[var(--wood-600)] hover:text-[var(--ink-900)]">✕</button>
+    </div>
+    <div class="flex gap-1 px-6 mt-4 border-b" style="border-color: var(--wood-300);">
+      <div class="admin-tab active" data-tab="schedule">스케줄 관리</div>
+      <div class="admin-tab" data-tab="reservations">예약 현황</div>
+      <div class="admin-tab" data-tab="taste">취향 편집</div>
+      <div class="admin-tab" data-tab="photo">프로필 사진</div>
+    </div>
+    <div class="p-6 overflow-y-auto flex-1">
+
+      <!-- schedule mgmt -->
+      <div id="adminTab-schedule" class="admin-panel">
+        <p class="text-sm text-[var(--wood-600)] mb-4">날짜를 클릭해서 예약 불가(차단) 상태를 토글하세요. 빨간 배경 = 차단됨.</p>
+        <div class="flex items-center justify-between mb-3">
+          <button id="adminCalPrevBtn" class="w-8 h-8 rounded-full hover:bg-[var(--wood-200)]">‹</button>
+          <span id="adminCalMonthLabel" class="font-semibold"></span>
+          <button id="adminCalNextBtn" class="w-8 h-8 rounded-full hover:bg-[var(--wood-200)]">›</button>
+        </div>
+        <div class="grid grid-cols-7 gap-1 text-center text-xs text-[var(--wood-600)] mb-1">
+          <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+        </div>
+        <div id="adminCalGrid" class="grid grid-cols-7 gap-1"></div>
+      </div>
+
+      <!-- reservations -->
+      <div id="adminTab-reservations" class="admin-panel hidden">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm text-[var(--wood-600)]">누적된 예약 리스트</p>
+          <button id="refreshReservationsBtn" class="text-xs underline text-[var(--wood-600)]">새로고침</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead>
+              <tr class="border-b" style="border-color: var(--wood-300);">
+                <th class="py-2 pr-4">이름</th>
+                <th class="py-2 pr-4">날짜</th>
+                <th class="py-2 pr-4">메뉴</th>
+                <th class="py-2">신청 시각</th>
+              </tr>
+            </thead>
+            <tbody id="reservationsTableBody"></tbody>
+          </table>
+          <p id="reservationsEmpty" class="text-center text-xs text-[var(--wood-500)] py-6 hidden">아직 예약이 없어요</p>
+        </div>
+      </div>
+
+      <!-- taste editor -->
+      <div id="adminTab-taste" class="admin-panel hidden">
+        <div class="mb-5">
+          <label class="text-sm font-semibold block mb-2">🎬 인생 영화</label>
+          <textarea id="adminMovieInput" rows="2" class="w-full p-3 rounded-lg text-sm" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+        </div>
+        <div class="mb-5">
+          <label class="text-sm font-semibold block mb-2">🎧 인생 음악</label>
+          <textarea id="adminMusicInput" rows="2" class="w-full p-3 rounded-lg text-sm" style="background:var(--wood-100); border:1px solid var(--wood-300);"></textarea>
+        </div>
+        <button id="saveTasteBtn" class="btn-primary px-6 py-2.5 rounded-full text-sm font-semibold">저장하기</button>
+      </div>
+
+      <!-- profile photo -->
+      <div id="adminTab-photo" class="admin-panel hidden">
+        <div class="flex items-center gap-3 mb-5">
+          <img id="currentPhotoPreview" class="current-photo-preview" src="" alt="현재 프로필 사진" />
+          <div>
+            <p class="text-sm font-semibold">현재 프로필 사진</p>
+            <p class="text-xs text-[var(--wood-500)]">새 사진을 올리면 모든 방문자에게 반영돼요</p>
+          </div>
+        </div>
+
+        <label class="btn-ghost inline-block px-5 py-2 rounded-full text-sm font-semibold cursor-pointer mb-4">
+          사진 선택하기
+          <input id="photoFileInput" type="file" accept="image/*" class="hidden" />
+        </label>
+
+        <div class="crop-viewport" id="cropViewport">
+          <div class="crop-placeholder" id="cropPlaceholder">사진을 선택하면<br/>여기서 위치와 크기를<br/>조절할 수 있어요</div>
+          <img id="cropImage" src="" alt="" style="display:none;" />
+        </div>
+
+        <div class="flex items-center gap-3 mt-4 max-w-xs mx-auto">
+          <span class="text-xs text-[var(--wood-600)]">축소</span>
+          <input id="cropZoomSlider" type="range" min="1" max="3" step="0.01" value="1" class="flex-1" disabled />
+          <span class="text-xs text-[var(--wood-600)]">확대</span>
+        </div>
+        <p class="text-center text-xs text-[var(--wood-500)] mt-2">드래그해서 위치를 옮길 수 있어요</p>
+
+        <div class="flex justify-center mt-5">
+          <button id="saveCroppedPhotoBtn" disabled class="btn-primary px-6 py-2.5 rounded-full text-sm font-semibold flex items-center gap-2">
+            <span id="savePhotoBtnLabel">이 사진으로 저장하기</span>
+            <span id="savePhotoSpinner" class="spinner hidden"></span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* =========================================================================
+   STATE
+========================================================================= */
+const state = {
+  name: "",
+  selectedDate: null,   // 'YYYY-MM-DD'
+  selectedMenu: null,
+  calViewYear: new Date().getFullYear(),
+  calViewMonth: new Date().getMonth(), // 0-indexed
+  adminCalViewYear: new Date().getFullYear(),
+  adminCalViewMonth: new Date().getMonth(),
+  busyDates: new Set(),   // from Google Calendar
+  blockedDates: new Set(),// from Supabase admin_blocked_dates
+  taste: { movie: "", music: "" },
+  photoUrl: DEFAULT_PROFILE_PHOTO_URL,
+  googleTokenClient: null,
+  googleAccessToken: null,
+  gapiReady: false,
+  // profile photo crop tool state
+  cropNaturalW: 0,
+  cropNaturalH: 0,
+  cropBaseW: 0,
+  cropBaseH: 0,
+  cropScale: 1,
+  cropDx: 0,
+  cropDy: 0,
+  cropDragging: false,
+  cropDragStart: { x: 0, y: 0, dx: 0, dy: 0 },
+};
+
+const CROP_VIEWPORT_SIZE = 260;
+const CROP_OUTPUT_SIZE = 720;
+
+const MENUS = [
+  { id: "japanese", label: "일식 🍣" },
+  { id: "western",  label: "양식 🍝" },
+  { id: "cafe",     label: "카페 ☕" },
+  { id: "korean",   label: "한식 🍚" },
+  { id: "chinese",  label: "중식 🥟" },
+  { id: "bar",      label: "이자카야 🍶" },
+];
+
+/* =========================================================================
+   SUPABASE
+========================================================================= */
+let supabase = null;
+function initSupabase() {
+  if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY") {
+    console.warn("Supabase가 설정되지 않았어요. 상단 CONFIG 값을 채워주세요.");
+    return null;
+  }
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+/*
+  Expected Supabase tables (create these in the Supabase SQL editor):
+
+  create table reservations (
+    id uuid primary key default gen_random_uuid(),
+    name text not null,
+    date date not null,
+    menu text not null,
+    created_at timestamptz default now()
+  );
+
+  create table blocked_dates (
+    date date primary key
+  );
+
+  create table profile_taste (
+    id int primary key default 1,
+    movie text,
+    music text,
+    photo_url text
+  );
+  insert into profile_taste (id, movie, music, photo_url) values (1, '', '', null);
+
+  -- Enable RLS + policies allowing anon select/insert as appropriate for your use case.
+
+  -- Also create a Storage bucket for the profile photo:
+  -- Dashboard > Storage > New bucket > name it "profile-photos" (must match
+  -- SUPABASE_STORAGE_BUCKET below), mark it Public, and add a policy allowing
+  -- anon INSERT/UPDATE/SELECT on it (same no-server-auth caveat as the tables above —
+  -- the admin password gate is a client-side UX gate only, not real access control).
+*/
+
+/* =========================================================================
+   UTIL
+========================================================================= */
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2400);
+}
+
+function fmtDate(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function fmtDateKorean(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return `${m}월 ${d}일`;
+}
+
+function switchScene(fromId, toId) {
+  const from = document.getElementById(fromId);
+  const to = document.getElementById(toId);
+  if (from) {
+    from.classList.add("leaving");
+    from.classList.remove("active");
+    setTimeout(() => from.classList.remove("leaving"), 650);
+  }
+  requestAnimationFrame(() => {
+    to.classList.add("active");
+    to.querySelectorAll(".fade-up").forEach((el, i) => {
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "";
+      el.style.animationDelay = `${i * 0.06}s`;
+    });
+  });
+}
+
+/* =========================================================================
+   SCENE 1: intro
+========================================================================= */
+const nameInput = document.getElementById("nameInput");
+const nameNextBtn = document.getElementById("nameNextBtn");
+
+nameInput.addEventListener("input", () => {
+  nameNextBtn.disabled = nameInput.value.trim().length === 0;
+});
+nameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !nameNextBtn.disabled) nameNextBtn.click();
+});
+
+nameNextBtn.addEventListener("click", () => {
+  state.name = nameInput.value.trim();
+  document.getElementById("profilePhoto").src = state.photoUrl;
+  document.getElementById("proposeText").textContent = `${state.name}님, 저와 데이트 하실래요? ☕`;
+  switchScene("scene-intro", "scene-propose");
+});
+
+/* =========================================================================
+   SCENE 2: propose (YES / NO dodge)
+========================================================================= */
+const noBtn = document.getElementById("noBtn");
+const yesBtn = document.getElementById("yesBtn");
+let noBtnPositioned = false;
+
+function dodgeNoBtn() {
+  const margin = 24;
+  const btnW = noBtn.offsetWidth || 120;
+  const btnH = noBtn.offsetHeight || 52;
+  const maxX = window.innerWidth - btnW - margin;
+  const maxY = window.innerHeight - btnH - margin;
+  const newX = Math.max(margin, Math.random() * maxX);
+  const newY = Math.max(margin, Math.random() * maxY);
+  noBtn.style.left = `${newX}px`;
+  noBtn.style.top = `${newY}px`;
+  noBtnPositioned = true;
+}
+
+noBtn.addEventListener("mouseenter", dodgeNoBtn);
+noBtn.addEventListener("touchstart", (e) => { e.preventDefault(); dodgeNoBtn(); }, { passive: false });
+noBtn.addEventListener("click", (e) => { e.preventDefault(); dodgeNoBtn(); });
+
+yesBtn.addEventListener("click", async () => {
+  // reset noBtn to static position for next time
+  noBtn.style.left = "";
+  noBtn.style.top = "";
+  noBtnPositioned = false;
+  switchScene("scene-propose", "scene-schedule");
+  renderMenuGrid();
+  renderCalendar();
+  await loadBusyDatesFromGoogle();
+});
+
+/* =========================================================================
+   SCENE 3: schedule + menu
+========================================================================= */
+function renderMenuGrid() {
+  const grid = document.getElementById("menuGrid");
+  grid.innerHTML = "";
+  MENUS.forEach((menu) => {
+    const card = document.createElement("div");
+    card.className = "menu-card rounded-xl py-4 text-center text-sm font-medium";
+    card.textContent = menu.label;
+    card.dataset.menuId = menu.id;
+    card.addEventListener("click", () => {
+      document.querySelectorAll(".menu-card").forEach((c) => c.classList.remove("selected"));
+      card.classList.add("selected");
+      state.selectedMenu = menu.id;
+      updateConfirmScheduleBtn();
+    });
+    grid.appendChild(card);
+  });
+}
+
+function isDateDisabled(dateStr) {
+  return state.busyDates.has(dateStr) || state.blockedDates.has(dateStr);
+}
+
+function renderCalendar() {
+  const grid = document.getElementById("calGrid");
+  const label = document.getElementById("calMonthLabel");
+  const y = state.calViewYear, m = state.calViewMonth;
+  label.textContent = `${y}년 ${m + 1}월`;
+  grid.innerHTML = "";
+
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const todayStr = fmtDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+
+  for (let i = 0; i < firstDay; i++) {
+    const empty = document.createElement("div");
+    empty.className = "cal-day empty";
+    grid.appendChild(empty);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = fmtDate(y, m, d);
+    const cell = document.createElement("div");
+    const isPast = new Date(dateStr) < new Date(todayStr);
+    const disabled = isDateDisabled(dateStr) || isPast;
+
+    cell.className = `cal-day ${disabled ? "disabled" : "available"}`;
+    if (dateStr === todayStr) cell.classList.add("today");
+    if (state.selectedDate === dateStr) cell.classList.add("selected");
+    cell.textContent = d;
+
+    if (!disabled) {
+      cell.addEventListener("click", () => {
+        state.selectedDate = dateStr;
+        renderCalendar();
+        updateConfirmScheduleBtn();
+      });
+    }
+    grid.appendChild(cell);
+  }
+}
+
+document.getElementById("calPrevBtn").addEventListener("click", () => {
+  state.calViewMonth--;
+  if (state.calViewMonth < 0) { state.calViewMonth = 11; state.calViewYear--; }
+  renderCalendar();
+});
+document.getElementById("calNextBtn").addEventListener("click", () => {
+  state.calViewMonth++;
+  if (state.calViewMonth > 11) { state.calViewMonth = 0; state.calViewYear++; }
+  renderCalendar();
+});
+
+function updateConfirmScheduleBtn() {
+  document.getElementById("confirmScheduleBtn").disabled = !(state.selectedDate && state.selectedMenu);
+}
+
+document.getElementById("confirmScheduleBtn").addEventListener("click", async () => {
+  const menuLabel = MENUS.find((m) => m.id === state.selectedMenu)?.label.split(" ")[0] || "";
+  document.getElementById("confirmText").textContent =
+    `${state.name}님, ${fmtDateKorean(state.selectedDate)}에\n${menuLabel} 먹으러 가요!\n그때 봬요! 🥰`;
+  switchScene("scene-schedule", "scene-confirm");
+  await saveReservation();
+});
+
+/* =========================================================================
+   SCENE 4: confirm -> save to supabase + google calendar
+========================================================================= */
+async function saveReservation() {
+  const btnLabel = document.getElementById("confirmBtnLabel");
+  const spinner = document.getElementById("confirmSpinner");
+  const okBtn = document.getElementById("confirmOkBtn");
+  okBtn.disabled = true;
+  spinner.classList.remove("hidden");
+
+  try {
+    if (supabase) {
+      const { error } = await supabase.from("reservations").insert({
+        name: state.name,
+        date: state.selectedDate,
+        menu: state.selectedMenu,
+      });
+      if (error) console.error("Supabase insert error:", error);
+    }
+    await createGoogleCalendarEvent();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    okBtn.disabled = false;
+    spinner.classList.add("hidden");
+    btnLabel.textContent = "확인하기";
+  }
+}
+
+document.getElementById("confirmOkBtn").addEventListener("click", async () => {
+  switchScene("scene-confirm", "scene-finale");
+  await loadTasteAndRenderCards();
+});
+
+/* =========================================================================
+   SCENE 5: finale taste cards
+========================================================================= */
+async function loadTasteAndRenderCards() {
+  if (supabase) {
+    const { data, error } = await supabase.from("profile_taste").select("movie, music").eq("id", 1).single();
+    if (!error && data) {
+      state.taste.movie = data.movie || "아직 등록되지 않았어요";
+      state.taste.music = data.music || "아직 등록되지 않았어요";
+    }
+  }
+  document.getElementById("movieText").textContent = state.taste.movie || "아직 등록되지 않았어요";
+  document.getElementById("musicText").textContent = state.taste.music || "아직 등록되지 않았어요";
+}
+
+document.querySelectorAll(".flip-card").forEach((card) => {
+  card.addEventListener("click", () => card.classList.toggle("flipped"));
+});
+
+/* =========================================================================
+   GOOGLE CALENDAR API (GIS + gapi client)
+========================================================================= */
+function loadGapiClient() {
+  return new Promise((resolve) => {
+    if (window.gapi) { resolve(); return; }
+    const script = document.createElement("script");
+    script.src = "https://apis.google.com/js/api.js";
+    script.onload = () => resolve();
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureGapiInited() {
+  if (state.gapiReady) return;
+  await loadGapiClient();
+  await new Promise((resolve) => window.gapi.load("client", resolve));
+  await window.gapi.client.init({
+    apiKey: GOOGLE_API_KEY,
+    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
+  });
+  state.gapiReady = true;
+}
+
+function ensureGoogleAuth() {
+  return new Promise((resolve, reject) => {
+    if (state.googleAccessToken) { resolve(state.googleAccessToken); return; }
+    if (!window.google || !window.google.accounts) { reject(new Error("Google Identity Services not loaded")); return; }
+    if (!state.googleTokenClient) {
+      state.googleTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
+        callback: (resp) => {
+          if (resp.error) { reject(resp); return; }
+          state.googleAccessToken = resp.access_token;
+          resolve(resp.access_token);
+        },
+      });
+    }
+    state.googleTokenClient.requestAccessToken({ prompt: "" });
+  });
+}
+
+async function loadBusyDatesFromGoogle() {
+  if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_OAUTH_CLIENT_ID" || GOOGLE_API_KEY === "YOUR_GOOGLE_API_KEY") {
+    console.warn("Google Calendar API가 설정되지 않았어요. 상단 CONFIG 값을 채워주세요.");
+    return;
+  }
+  const loadingEl = document.getElementById("calLoading");
+  loadingEl.classList.remove("hidden");
+  try {
+    await ensureGapiInited();
+    await ensureGoogleAuth();
+    window.gapi.client.setToken({ access_token: state.googleAccessToken });
+
+    const timeMin = new Date();
+    const timeMax = new Date();
+    timeMax.setDate(timeMax.getDate() + 90); // look 90 days ahead
+
+    const res = await window.gapi.client.calendar.events.list({
+      calendarId: GOOGLE_CALENDAR_ID,
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      singleEvents: true,
+      orderBy: "startTime",
+      maxResults: 250,
+    });
+
+    const events = res.result.items || [];
+    state.busyDates.clear();
+    events.forEach((ev) => {
+      const isAllDay = !!ev.start?.date;
+      const startStr = ev.start?.date || ev.start?.dateTime;
+      const endStr = ev.end?.date || ev.end?.dateTime;
+      if (!startStr) return;
+
+      let cur = new Date(startStr.slice(0, 10));
+      let endDate;
+      if (isAllDay) {
+        // Google's all-day "end.date" is exclusive of the last day.
+        endDate = new Date((endStr || startStr).slice(0, 10));
+      } else {
+        // timed event: just block the single day it occurs on.
+        endDate = new Date(cur);
+        endDate.setDate(endDate.getDate() + 1);
+      }
+
+      while (cur < endDate) {
+        state.busyDates.add(fmtDate(cur.getFullYear(), cur.getMonth(), cur.getDate()));
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+    renderCalendar();
+  } catch (err) {
+    console.error("Google Calendar 조회 실패:", err);
+    toast("캘린더 정보를 불러오지 못했어요");
+  } finally {
+    loadingEl.classList.add("hidden");
+  }
+}
+
+async function createGoogleCalendarEvent() {
+  if (GOOGLE_CLIENT_ID === "YOUR_GOOGLE_OAUTH_CLIENT_ID" || GOOGLE_API_KEY === "YOUR_GOOGLE_API_KEY") return;
+  try {
+    await ensureGapiInited();
+    await ensureGoogleAuth();
+    window.gapi.client.setToken({ access_token: state.googleAccessToken });
+
+    const menuLabel = MENUS.find((m) => m.id === state.selectedMenu)?.label || "";
+    await window.gapi.client.calendar.events.insert({
+      calendarId: GOOGLE_CALENDAR_ID,
+      resource: {
+        summary: `${state.name}님과 데이트 (${menuLabel})`,
+        description: `예약 시스템을 통해 자동 등록된 일정입니다.`,
+        start: { date: state.selectedDate },
+        end: { date: state.selectedDate },
+      },
+    });
+  } catch (err) {
+    console.error("Google Calendar 일정 등록 실패:", err);
+  }
+}
+
+/* =========================================================================
+   ADMIN: gear button -> login -> panel
+========================================================================= */
+const adminLoginModal = document.getElementById("adminLoginModal");
+const adminPanelModal = document.getElementById("adminPanelModal");
+
+document.getElementById("adminGearBtn").addEventListener("click", () => {
+  document.getElementById("adminPasswordInput").value = "";
+  document.getElementById("adminLoginError").classList.add("hidden");
+  adminLoginModal.classList.remove("hidden");
+  setTimeout(() => document.getElementById("adminPasswordInput").focus(), 50);
+});
+
+document.getElementById("adminLoginCancelBtn").addEventListener("click", () => {
+  adminLoginModal.classList.add("hidden");
+});
+
+document.getElementById("adminPasswordInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("adminLoginSubmitBtn").click();
+});
+
+document.getElementById("adminLoginSubmitBtn").addEventListener("click", async () => {
+  const val = document.getElementById("adminPasswordInput").value;
+  if (val === ADMIN_PASSWORD) {
+    adminLoginModal.classList.add("hidden");
+    await openAdminPanel();
+  } else {
+    document.getElementById("adminLoginError").classList.remove("hidden");
+  }
+});
+
+document.getElementById("adminCloseBtn").addEventListener("click", () => {
+  adminPanelModal.classList.add("hidden");
+});
+
+document.querySelectorAll(".admin-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".admin-tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".admin-panel").forEach((p) => p.classList.add("hidden"));
+    tab.classList.add("active");
+    document.getElementById(`adminTab-${tab.dataset.tab}`).classList.remove("hidden");
+  });
+});
+
+async function openAdminPanel() {
+  adminPanelModal.classList.remove("hidden");
+  await loadBlockedDates();
+  renderAdminCalendar();
+  await loadReservationsTable();
+  await loadTasteEditor();
+  document.getElementById("currentPhotoPreview").src = state.photoUrl;
+  resetCropTool();
+}
+
+/* ---- Admin: schedule management ---- */
+async function loadBlockedDates() {
+  if (!supabase) return;
+  const { data, error } = await supabase.from("blocked_dates").select("date");
+  if (!error && data) {
+    state.blockedDates = new Set(data.map((r) => r.date));
+  }
+}
+
+function renderAdminCalendar() {
+  const grid = document.getElementById("adminCalGrid");
+  const label = document.getElementById("adminCalMonthLabel");
+  const y = state.adminCalViewYear, m = state.adminCalViewMonth;
+  label.textContent = `${y}년 ${m + 1}월`;
+  grid.innerHTML = "";
+
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    const empty = document.createElement("div");
+    empty.className = "cal-day empty";
+    grid.appendChild(empty);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = fmtDate(y, m, d);
+    const cell = document.createElement("div");
+    const isBlocked = state.blockedDates.has(dateStr);
+    const isBusy = state.busyDates.has(dateStr);
+    cell.className = "cal-day available";
+    cell.textContent = d;
+    if (isBlocked) {
+      cell.style.background = "#E8B4A8";
+      cell.style.color = "#5A2E24";
+      cell.style.fontWeight = "700";
+    } else if (isBusy) {
+      cell.style.background = "var(--wood-200)";
+      cell.style.color = "var(--wood-500)";
+    }
+    cell.title = isBusy ? "구글 캘린더 일정 있음" : "";
+    cell.addEventListener("click", () => toggleBlockedDate(dateStr));
+    grid.appendChild(cell);
+  }
+}
+
+async function toggleBlockedDate(dateStr) {
+  if (!supabase) { toast("Supabase가 설정되지 않았어요"); return; }
+  if (state.blockedDates.has(dateStr)) {
+    const { error } = await supabase.from("blocked_dates").delete().eq("date", dateStr);
+    if (!error) { state.blockedDates.delete(dateStr); toast(`${fmtDateKorean(dateStr)} 차단 해제`); }
+  } else {
+    const { error } = await supabase.from("blocked_dates").insert({ date: dateStr });
+    if (!error) { state.blockedDates.add(dateStr); toast(`${fmtDateKorean(dateStr)} 차단됨`); }
+  }
+  renderAdminCalendar();
+}
+
+document.getElementById("adminCalPrevBtn").addEventListener("click", () => {
+  state.adminCalViewMonth--;
+  if (state.adminCalViewMonth < 0) { state.adminCalViewMonth = 11; state.adminCalViewYear--; }
+  renderAdminCalendar();
+});
+document.getElementById("adminCalNextBtn").addEventListener("click", () => {
+  state.adminCalViewMonth++;
+  if (state.adminCalViewMonth > 11) { state.adminCalViewMonth = 0; state.adminCalViewYear++; }
+  renderAdminCalendar();
+});
+
+/* ---- Admin: reservations table ---- */
+async function loadReservationsTable() {
+  const tbody = document.getElementById("reservationsTableBody");
+  const emptyMsg = document.getElementById("reservationsEmpty");
+  tbody.innerHTML = "";
+  if (!supabase) return;
+
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("name, date, menu, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error || !data || data.length === 0) {
+    emptyMsg.classList.remove("hidden");
+    return;
+  }
+  emptyMsg.classList.add("hidden");
+
+  data.forEach((row) => {
+    const menuLabel = MENUS.find((m) => m.id === row.menu)?.label || row.menu;
+    const tr = document.createElement("tr");
+    tr.className = "border-b";
+    tr.style.borderColor = "var(--wood-200)";
+    tr.innerHTML = `
+      <td class="py-2 pr-4">${escapeHtml(row.name)}</td>
+      <td class="py-2 pr-4">${row.date}</td>
+      <td class="py-2 pr-4">${escapeHtml(menuLabel)}</td>
+      <td class="py-2 text-xs text-[var(--wood-500)]">${new Date(row.created_at).toLocaleString("ko-KR")}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById("refreshReservationsBtn").addEventListener("click", loadReservationsTable);
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ---- Admin: taste editor ---- */
+async function loadTasteEditor() {
+  if (!supabase) return;
+  const { data, error } = await supabase.from("profile_taste").select("movie, music").eq("id", 1).single();
+  if (!error && data) {
+    document.getElementById("adminMovieInput").value = data.movie || "";
+    document.getElementById("adminMusicInput").value = data.music || "";
+  }
+}
+
+document.getElementById("saveTasteBtn").addEventListener("click", async () => {
+  if (!supabase) { toast("Supabase가 설정되지 않았어요"); return; }
+  const movie = document.getElementById("adminMovieInput").value.trim();
+  const music = document.getElementById("adminMusicInput").value.trim();
+  const { error } = await supabase.from("profile_taste").upsert({ id: 1, movie, music });
+  if (!error) {
+    state.taste.movie = movie;
+    state.taste.music = music;
+    toast("취향이 저장되었어요");
+  } else {
+    toast("저장에 실패했어요");
+  }
+});
+
+/* ---- Admin: profile photo upload + square crop ---- */
+const cropViewport = document.getElementById("cropViewport");
+const cropImage = document.getElementById("cropImage");
+const cropPlaceholder = document.getElementById("cropPlaceholder");
+const cropZoomSlider = document.getElementById("cropZoomSlider");
+const saveCroppedPhotoBtn = document.getElementById("saveCroppedPhotoBtn");
+
+function resetCropTool() {
+  document.getElementById("photoFileInput").value = "";
+  cropImage.style.display = "none";
+  cropImage.src = "";
+  cropPlaceholder.style.display = "flex";
+  cropViewport.classList.remove("has-image");
+  cropZoomSlider.value = 1;
+  cropZoomSlider.disabled = true;
+  saveCroppedPhotoBtn.disabled = true;
+  state.cropScale = 1;
+  state.cropDx = 0;
+  state.cropDy = 0;
+}
+
+document.getElementById("photoFileInput").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      state.cropNaturalW = img.naturalWidth;
+      state.cropNaturalH = img.naturalHeight;
+      // "cover" base size: smaller natural dimension maps to the viewport size
+      const coverRatio = CROP_VIEWPORT_SIZE / Math.min(img.naturalWidth, img.naturalHeight);
+      state.cropBaseW = img.naturalWidth * coverRatio;
+      state.cropBaseH = img.naturalHeight * coverRatio;
+      state.cropScale = 1;
+      state.cropDx = 0;
+      state.cropDy = 0;
+
+      cropImage.src = ev.target.result;
+      cropImage.style.display = "block";
+      cropPlaceholder.style.display = "none";
+      cropViewport.classList.add("has-image");
+      cropZoomSlider.value = 1;
+      cropZoomSlider.disabled = false;
+      saveCroppedPhotoBtn.disabled = false;
+      renderCropTransform();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+function clampCropOffsets() {
+  const dispW = state.cropBaseW * state.cropScale;
+  const dispH = state.cropBaseH * state.cropScale;
+  const maxDx = Math.max(0, (dispW - CROP_VIEWPORT_SIZE) / 2);
+  const maxDy = Math.max(0, (dispH - CROP_VIEWPORT_SIZE) / 2);
+  state.cropDx = Math.min(maxDx, Math.max(-maxDx, state.cropDx));
+  state.cropDy = Math.min(maxDy, Math.max(-maxDy, state.cropDy));
+}
+
+function renderCropTransform() {
+  const dispW = state.cropBaseW * state.cropScale;
+  const dispH = state.cropBaseH * state.cropScale;
+  cropImage.style.width = `${dispW}px`;
+  cropImage.style.height = `${dispH}px`;
+  cropImage.style.transform = `translate(calc(-50% + ${state.cropDx}px), calc(-50% + ${state.cropDy}px))`;
+}
+
+cropZoomSlider.addEventListener("input", () => {
+  state.cropScale = parseFloat(cropZoomSlider.value);
+  clampCropOffsets();
+  renderCropTransform();
+});
+
+function cropPointerDown(e) {
+  if (!cropViewport.classList.contains("has-image")) return;
+  state.cropDragging = true;
+  cropViewport.classList.add("dragging");
+  const point = e.touches ? e.touches[0] : e;
+  state.cropDragStart = { x: point.clientX, y: point.clientY, dx: state.cropDx, dy: state.cropDy };
+  if (e.pointerId !== undefined) cropViewport.setPointerCapture(e.pointerId);
+  e.preventDefault();
+}
+function cropPointerMove(e) {
+  if (!state.cropDragging) return;
+  const point = e.touches ? e.touches[0] : e;
+  const deltaX = point.clientX - state.cropDragStart.x;
+  const deltaY = point.clientY - state.cropDragStart.y;
+  state.cropDx = state.cropDragStart.dx + deltaX;
+  state.cropDy = state.cropDragStart.dy + deltaY;
+  clampCropOffsets();
+  renderCropTransform();
+  e.preventDefault();
+}
+function cropPointerUp() {
+  state.cropDragging = false;
+  cropViewport.classList.remove("dragging");
+}
+
+cropViewport.addEventListener("pointerdown", cropPointerDown);
+cropViewport.addEventListener("pointermove", cropPointerMove);
+window.addEventListener("pointerup", cropPointerUp);
+
+function renderCroppedCanvas() {
+  const canvas = document.createElement("canvas");
+  canvas.width = CROP_OUTPUT_SIZE;
+  canvas.height = CROP_OUTPUT_SIZE;
+  const ctx = canvas.getContext("2d");
+  const ratio = CROP_OUTPUT_SIZE / CROP_VIEWPORT_SIZE;
+  const dw = state.cropBaseW * state.cropScale * ratio;
+  const dh = state.cropBaseH * state.cropScale * ratio;
+  const dx = CROP_OUTPUT_SIZE / 2 - dw / 2 + state.cropDx * ratio;
+  const dy = CROP_OUTPUT_SIZE / 2 - dh / 2 + state.cropDy * ratio;
+  ctx.drawImage(cropImage, dx, dy, dw, dh);
+  return canvas;
+}
+
+saveCroppedPhotoBtn.addEventListener("click", async () => {
+  const label = document.getElementById("savePhotoBtnLabel");
+  const spinner = document.getElementById("savePhotoSpinner");
+  saveCroppedPhotoBtn.disabled = true;
+  spinner.classList.remove("hidden");
+
+  try {
+    const canvas = renderCroppedCanvas();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+
+    if (!supabase) {
+      // No backend configured: reflect locally only, in this browser/session.
+      const localUrl = canvas.toDataURL("image/jpeg", 0.92);
+      state.photoUrl = localUrl;
+      document.getElementById("profilePhoto").src = localUrl;
+      document.getElementById("currentPhotoPreview").src = localUrl;
+      toast("Supabase 미설정: 이 기기에서만 미리 반영돼요");
+      return;
+    }
+
+    const filePath = "profile.jpg";
+    const { error: uploadError } = await supabase.storage
+      .from(SUPABASE_STORAGE_BUCKET)
+      .upload(filePath, blob, { upsert: true, contentType: "image/jpeg" });
+
+    if (uploadError) {
+      console.error("사진 업로드 실패:", uploadError);
+      toast("사진 업로드에 실패했어요");
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(filePath);
+    const freshUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`; // cache-bust since filename is fixed
+
+    const { error: updateError } = await supabase.from("profile_taste").upsert({ id: 1, photo_url: freshUrl });
+    if (updateError) {
+      console.error("사진 URL 저장 실패:", updateError);
+      toast("사진 저장에 실패했어요");
+      return;
+    }
+
+    state.photoUrl = freshUrl;
+    document.getElementById("profilePhoto").src = freshUrl;
+    document.getElementById("currentPhotoPreview").src = freshUrl;
+    toast("프로필 사진이 저장되었어요");
+  } finally {
+    saveCroppedPhotoBtn.disabled = false;
+    spinner.classList.add("hidden");
+    label.textContent = "이 사진으로 저장하기";
+  }
+});
+
+/* =========================================================================
+   INIT
+========================================================================= */
+window.addEventListener("DOMContentLoaded", async () => {
+  supabase = initSupabase();
+  document.getElementById("profilePhoto").src = state.photoUrl;
+  await loadSiteConfig();
+});
+
+async function loadSiteConfig() {
+  if (!supabase) return;
+  const { data, error } = await supabase.from("profile_taste").select("movie, music, photo_url").eq("id", 1).single();
+  if (!error && data) {
+    state.taste.movie = data.movie || "";
+    state.taste.music = data.music || "";
+    if (data.photo_url) {
+      state.photoUrl = data.photo_url;
+      document.getElementById("profilePhoto").src = state.photoUrl;
+    }
+  }
+}
+
+window.addEventListener("resize", () => {
+  if (noBtnPositioned) dodgeNoBtn();
+});
+</script>
+</body>
+</html>
