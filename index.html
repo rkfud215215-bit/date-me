@@ -20,6 +20,9 @@
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
     background: #F7F1E8;
     color: #4A3F35;
+    /* Pretendard bundles flat glyphs for some symbol codepoints (e.g. ☕), which can
+       shadow the OS color-emoji font. Force real emoji presentation everywhere. */
+    font-variant-emoji: emoji;
   }
   .bg-photo {
     position: fixed;
@@ -361,6 +364,9 @@
   ⚙️
 </button>
 
+<!-- Real dodging NO button, kept as a body-level sibling (see comment in scene-propose) -->
+<button id="noBtn" class="btn-ghost px-10 py-3.5 rounded-full font-semibold text-lg" style="visibility:hidden;">NO</button>
+
 <!-- ================= SCENE 1: Intro (name input) ================= -->
 <section id="scene-intro" class="scene active">
   <div class="paper-card rounded-3xl p-10 md:p-14 max-w-md w-full text-center fade-up">
@@ -382,7 +388,11 @@
     <h2 id="proposeText" class="font-display gradient-text text-2xl md:text-3xl leading-snug mb-10 fade-up whitespace-pre-line"></h2>
     <div class="relative flex items-center justify-center gap-5 h-16">
       <button id="yesBtn" class="btn-primary px-10 py-3.5 rounded-full font-semibold text-lg">YES</button>
-      <button id="noBtn" class="btn-ghost px-10 py-3.5 rounded-full font-semibold text-lg">NO</button>
+      <!-- NO button placeholder: keeps layout spacing; the real, clickable #noBtn is a
+           fixed-position sibling of <body> (see below) so it can dodge anywhere in the
+           viewport -- it can't live inside .scene, whose CSS `transform` would make IT
+           the containing block for a position:fixed descendant instead of the viewport. -->
+      <div class="btn-ghost px-10 py-3.5 rounded-full font-semibold text-lg invisible" aria-hidden="true">NO</div>
     </div>
   </div>
 </section>
@@ -745,14 +755,26 @@ nameNextBtn.addEventListener("click", () => {
   document.getElementById("profilePhoto").src = state.photoUrl;
   document.getElementById("proposeText").textContent = `${state.name}님, 저와 데이트 하실래요? ☕`;
   switchScene("scene-intro", "scene-propose");
+  positionNoBtnAtRest();
 });
 
 /* =========================================================================
    SCENE 2: propose (YES / NO dodge)
 ========================================================================= */
 const noBtn = document.getElementById("noBtn");
+const noBtnPlaceholder = document.querySelector("#scene-propose [aria-hidden='true']");
 const yesBtn = document.getElementById("yesBtn");
 let noBtnPositioned = false;
+
+// Rest position lines the real (body-level) #noBtn up over its invisible placeholder,
+// which sits in the normal YES/NO flex row so it gets the right layout position.
+function positionNoBtnAtRest() {
+  const rect = noBtnPlaceholder.getBoundingClientRect();
+  noBtn.style.left = `${rect.left}px`;
+  noBtn.style.top = `${rect.top}px`;
+  noBtn.style.visibility = "visible";
+  noBtnPositioned = false;
+}
 
 function dodgeNoBtn() {
   const margin = 24;
@@ -772,9 +794,7 @@ noBtn.addEventListener("touchstart", (e) => { e.preventDefault(); dodgeNoBtn(); 
 noBtn.addEventListener("click", (e) => { e.preventDefault(); dodgeNoBtn(); });
 
 yesBtn.addEventListener("click", async () => {
-  // reset noBtn to static position for next time
-  noBtn.style.left = "";
-  noBtn.style.top = "";
+  noBtn.style.visibility = "hidden";
   noBtnPositioned = false;
   switchScene("scene-propose", "scene-schedule");
   renderMenuGrid();
@@ -1426,7 +1446,9 @@ async function loadSiteConfig() {
 }
 
 window.addEventListener("resize", () => {
+  if (!document.getElementById("scene-propose").classList.contains("active")) return;
   if (noBtnPositioned) dodgeNoBtn();
+  else positionNoBtnAtRest();
 });
 </script>
 </body>
