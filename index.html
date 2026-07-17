@@ -942,11 +942,13 @@ noBtn.addEventListener("mouseenter", dodgeNoBtn);
 noBtn.addEventListener("touchstart", (e) => { e.preventDefault(); dodgeNoBtn(); }, { passive: false });
 noBtn.addEventListener("click", (e) => { e.preventDefault(); dodgeNoBtn(); });
 
-yesBtn.addEventListener("click", () => {
+yesBtn.addEventListener("click", async () => {
   noBtn.style.visibility = "hidden";
   noBtnPositioned = false;
   switchScene("scene-propose", "scene-schedule");
   renderMenuGrid();
+  renderCalendar(); // paint immediately with whatever's cached, then refresh with real data
+  await loadBlockedDates();
   renderCalendar();
 });
 
@@ -1712,7 +1714,7 @@ saveCroppedPhotoBtn.addEventListener("click", async () => {
 window.addEventListener("DOMContentLoaded", async () => {
   supabaseClient = initSupabase();
   document.getElementById("profilePhoto").src = state.photoUrl;
-  await loadSiteConfig();
+  await Promise.all([loadSiteConfig(), loadBlockedDates()]);
 });
 
 async function loadSiteConfig() {
