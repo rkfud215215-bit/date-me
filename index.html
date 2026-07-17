@@ -637,7 +637,7 @@ const MENUS = [
 /* =========================================================================
    SUPABASE
 ========================================================================= */
-let supabase = null;
+let supabaseClient = null;
 function initSupabase() {
   if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY") {
     console.warn("Supabase가 설정되지 않았어요. 상단 CONFIG 값을 채워주세요.");
@@ -870,7 +870,7 @@ document.getElementById("confirmScheduleBtn").addEventListener("click", async ()
 });
 
 /* =========================================================================
-   SCENE 4: confirm -> save to supabase + google calendar
+   SCENE 4: confirm -> save to Supabase + google calendar
 ========================================================================= */
 async function saveReservation() {
   const btnLabel = document.getElementById("confirmBtnLabel");
@@ -880,8 +880,8 @@ async function saveReservation() {
   spinner.classList.remove("hidden");
 
   try {
-    if (supabase) {
-      const { error } = await supabase.from("reservations").insert({
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from("reservations").insert({
         name: state.name,
         date: state.selectedDate,
         menu: state.selectedMenu,
@@ -907,8 +907,8 @@ document.getElementById("confirmOkBtn").addEventListener("click", async () => {
    SCENE 5: finale taste cards
 ========================================================================= */
 async function loadTasteAndRenderCards() {
-  if (supabase) {
-    const { data, error } = await supabase.from("profile_taste").select("movie, music").eq("id", 1).single();
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.from("profile_taste").select("movie, music").eq("id", 1).single();
     if (!error && data) {
       state.taste.movie = data.movie || "아직 등록되지 않았어요";
       state.taste.music = data.music || "아직 등록되지 않았어요";
@@ -1101,8 +1101,8 @@ async function openAdminPanel() {
 
 /* ---- Admin: schedule management ---- */
 async function loadBlockedDates() {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("blocked_dates").select("date");
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient.from("blocked_dates").select("date");
   if (!error && data) {
     state.blockedDates = new Set(data.map((r) => r.date));
   }
@@ -1146,12 +1146,12 @@ function renderAdminCalendar() {
 }
 
 async function toggleBlockedDate(dateStr) {
-  if (!supabase) { toast("Supabase가 설정되지 않았어요"); return; }
+  if (!supabaseClient) { toast("Supabase가 설정되지 않았어요"); return; }
   if (state.blockedDates.has(dateStr)) {
-    const { error } = await supabase.from("blocked_dates").delete().eq("date", dateStr);
+    const { error } = await supabaseClient.from("blocked_dates").delete().eq("date", dateStr);
     if (!error) { state.blockedDates.delete(dateStr); toast(`${fmtDateKorean(dateStr)} 차단 해제`); }
   } else {
-    const { error } = await supabase.from("blocked_dates").insert({ date: dateStr });
+    const { error } = await supabaseClient.from("blocked_dates").insert({ date: dateStr });
     if (!error) { state.blockedDates.add(dateStr); toast(`${fmtDateKorean(dateStr)} 차단됨`); }
   }
   renderAdminCalendar();
@@ -1173,9 +1173,9 @@ async function loadReservationsTable() {
   const tbody = document.getElementById("reservationsTableBody");
   const emptyMsg = document.getElementById("reservationsEmpty");
   tbody.innerHTML = "";
-  if (!supabase) return;
+  if (!supabaseClient) return;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("reservations")
     .select("name, date, menu, created_at")
     .order("created_at", { ascending: false });
@@ -1211,8 +1211,8 @@ function escapeHtml(str) {
 
 /* ---- Admin: taste editor ---- */
 async function loadTasteEditor() {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("profile_taste").select("movie, music").eq("id", 1).single();
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient.from("profile_taste").select("movie, music").eq("id", 1).single();
   if (!error && data) {
     document.getElementById("adminMovieInput").value = data.movie || "";
     document.getElementById("adminMusicInput").value = data.music || "";
@@ -1220,10 +1220,10 @@ async function loadTasteEditor() {
 }
 
 document.getElementById("saveTasteBtn").addEventListener("click", async () => {
-  if (!supabase) { toast("Supabase가 설정되지 않았어요"); return; }
+  if (!supabaseClient) { toast("Supabase가 설정되지 않았어요"); return; }
   const movie = document.getElementById("adminMovieInput").value.trim();
   const music = document.getElementById("adminMusicInput").value.trim();
-  const { error } = await supabase.from("profile_taste").upsert({ id: 1, movie, music });
+  const { error } = await supabaseClient.from("profile_taste").upsert({ id: 1, movie, music });
   if (!error) {
     state.taste.movie = movie;
     state.taste.music = music;
@@ -1361,7 +1361,7 @@ saveCroppedPhotoBtn.addEventListener("click", async () => {
     const canvas = renderCroppedCanvas();
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
 
-    if (!supabase) {
+    if (!supabaseClient) {
       // No backend configured: reflect locally only, in this browser/session.
       const localUrl = canvas.toDataURL("image/jpeg", 0.92);
       state.photoUrl = localUrl;
@@ -1372,7 +1372,7 @@ saveCroppedPhotoBtn.addEventListener("click", async () => {
     }
 
     const filePath = "profile.jpg";
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseClient.storage
       .from(SUPABASE_STORAGE_BUCKET)
       .upload(filePath, blob, { upsert: true, contentType: "image/jpeg" });
 
@@ -1382,10 +1382,10 @@ saveCroppedPhotoBtn.addEventListener("click", async () => {
       return;
     }
 
-    const { data: publicUrlData } = supabase.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(filePath);
+    const { data: publicUrlData } = supabaseClient.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(filePath);
     const freshUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`; // cache-bust since filename is fixed
 
-    const { error: updateError } = await supabase.from("profile_taste").upsert({ id: 1, photo_url: freshUrl });
+    const { error: updateError } = await supabaseClient.from("profile_taste").upsert({ id: 1, photo_url: freshUrl });
     if (updateError) {
       console.error("사진 URL 저장 실패:", updateError);
       toast("사진 저장에 실패했어요");
@@ -1407,14 +1407,14 @@ saveCroppedPhotoBtn.addEventListener("click", async () => {
    INIT
 ========================================================================= */
 window.addEventListener("DOMContentLoaded", async () => {
-  supabase = initSupabase();
+  supabaseClient = initSupabase();
   document.getElementById("profilePhoto").src = state.photoUrl;
   await loadSiteConfig();
 });
 
 async function loadSiteConfig() {
-  if (!supabase) return;
-  const { data, error } = await supabase.from("profile_taste").select("movie, music, photo_url").eq("id", 1).single();
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient.from("profile_taste").select("movie, music, photo_url").eq("id", 1).single();
   if (!error && data) {
     state.taste.movie = data.movie || "";
     state.taste.music = data.music || "";
